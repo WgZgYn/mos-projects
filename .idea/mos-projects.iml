@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/mos/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mos/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/allocators/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user_space/green_thread/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user_space/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vga/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/mos/target" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/user_space/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
