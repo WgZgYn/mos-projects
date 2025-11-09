@@ -17,8 +17,6 @@ fn main() {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={bios_path}"));
     }
-    cmd.arg("-device").arg("qemu-xhci");
-    cmd.arg("-device").arg("usb-kbd");
     cmd.arg("-serial").arg("stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
     cmd.arg("-m").arg("4096");

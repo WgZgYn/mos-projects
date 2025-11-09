@@ -6,7 +6,7 @@ resolver = "3"
 
 [build-dependencies]
 bootloader = "0.11"
-mos = { path = "mos", artifact = "bin", target = "x86_64-unknown-none" }
+mos = { path = "mos", artifact = "bin", target = "x86_64-unknown-none", features = ["intr_apic"] }
 
 [dependencies]
 # used for UEFI booting in QEMU
@@ -16,8 +16,8 @@ ovmf-prebuilt = "0.1.0-alpha.1"
 members = ["allocators", "mos", "vga", "user_space/green_thread"]
 
 [features]
-default = ["uefi"]
 uefi = []
+default = ["uefi"]
 
 [profile.release]
 opt-level = 3
