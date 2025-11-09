@@ -6,7 +6,7 @@ resolver = "3"
 
 [build-dependencies]
 bootloader = "0.11"
-mos = { path = "mos", artifact = "bin", target = "x86_64-unknown-none", features = ["intr_apic"] }
+mos = { path = "mos", artifact = "bin", target = "x86_64-unknown-none", features = ["intr_apic"], default-features = false }
 
 [dependencies]
 # used for UEFI booting in QEMU
