@@ -21,6 +21,15 @@ fn main() {
     cmd.arg("-cpu").arg("qemu64,+rdrand");
     cmd.arg("-m").arg("4096");
 
+    println!(
+        "{} {}",
+        cmd.get_program().to_str().unwrap_or(""),
+        cmd.get_args()
+            .map(|s| s.to_str().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();
 }

@@ -69,6 +69,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 
 [[package]]
+name = "bitmap"
+version = "0.1.0"
+
+[[package]]
 name = "bitvec"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -365,6 +369,7 @@ name = "mos"
 version = "0.1.0"
 dependencies = [
  "acpi",
+ "bitmap",
  "bootloader_api",
  "conquer-once 0.4.0",
  "crossbeam-queue",

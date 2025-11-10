@@ -106,7 +106,7 @@ unsafe impl GlobalAlloc for Locked<StackHeap> {
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         let header_ptr = align_up(ptr as usize + layout.size(), align_of::<BlockHeader>());
-        assert!(header_ptr as usize <= self.inner.lock().heap_end);
+        assert!(header_ptr <= self.inner.lock().heap_end);
         unsafe {
             (*(header_ptr as *mut BlockHeader)).set_allocated(false);
         }
