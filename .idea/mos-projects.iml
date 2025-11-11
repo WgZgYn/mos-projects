@@ -10,6 +10,7 @@
       <sourceFolder url="file://$MODULE_DIR$/user_space/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/vga/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bitmap/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/optional/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user_space/target" />

@@ -1,5 +1,5 @@
+use crate::{Locked, align_up};
 use core::alloc::{GlobalAlloc, Layout};
-use crate::{align_up, Locked};
 
 // 标志位操作
 const FLAG_BIT: usize = usize::BITS as usize - 1;

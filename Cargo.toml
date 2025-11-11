@@ -13,7 +13,7 @@ mos = { path = "mos", artifact = "bin", target = "x86_64-unknown-none", features
 ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
-members = ["allocators", "mos", "vga", "user_space/green_thread", "bitmap"]
+members = ["allocators", "mos", "vga", "user_space/green_thread", "bitmap", "optional"]
 
 [features]
 uefi = []

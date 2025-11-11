@@ -1,6 +1,6 @@
-use std::fmt::Write;
 use crate::vga::{CONSOLE, Color, ColorCode};
 use log::{Metadata, Record};
+use std::fmt::Write;
 pub struct KernelLogger;
 
 impl log::Log for KernelLogger {
