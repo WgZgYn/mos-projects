@@ -19,7 +19,7 @@ fn main() {
     }
     cmd.arg("-serial").arg("stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
-    cmd.arg("-m").arg("4096");
+    cmd.arg("-m").arg("4G");
     cmd.arg("-device")
         .arg("loader,file=./ramfs.bin,addr=0x50000000"); // This use pmemsave to save the memory
 
