@@ -3,6 +3,8 @@
 use bitflags::bitflags;
 
 pub const TER_V16N: &[u8] = include_bytes!("../assert/font/ter-v16n.psf");
+pub const FONT_TER_V16N: PsfFont = unsafe { PsfFont::new_unchecked(TER_V16N) };
+
 /// PSF 版本
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PsfVersion {
@@ -64,7 +66,7 @@ pub struct PsfFont<'a> {
 
 impl<'a> PsfFont<'a> {
     /// 从字节切片创建 PSF 字体解析器
-    pub fn new(data: &'a [u8]) -> Result<Self, PsfError> {
+    pub const fn new(data: &'a [u8]) -> Result<Self, PsfError> {
         if data.len() < 4 {
             return Err(PsfError::InvalidHeader);
         }
@@ -80,9 +82,25 @@ impl<'a> PsfFont<'a> {
         }
     }
 
+    pub const unsafe fn new_unchecked(data: &'a [u8]) -> Self {
+        // 检查魔数以确定版本
+        let magic_u16 = u16::from_le_bytes([data[0], data[1]]);
+        let magic_u32 = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+
+        let res = match (magic_u16, magic_u32) {
+            (0x0436, _) => Self::parse_psf1(data),
+            (_, 0x864ab572) => Self::parse_psf2(data),
+            _ => Err(PsfError::InvalidMagic),
+        };
+        match res {
+            Ok(res) => res,
+            Err(_) => panic!("PsfFont::new_unchecked() failed"),
+        }
+    }
+
     /// 解析 PSF1 字体
-    fn parse_psf1(data: &'a [u8]) -> Result<Self, PsfError> {
-        if data.len() < core::mem::size_of::<Psf1Header>() {
+    const fn parse_psf1(data: &'a [u8]) -> Result<Self, PsfError> {
+        if data.len() < size_of::<Psf1Header>() {
             return Err(PsfError::InvalidHeader);
         }
 
@@ -116,7 +134,7 @@ impl<'a> PsfFont<'a> {
     }
 
     /// 解析 PSF2 字体
-    fn parse_psf2(data: &'a [u8]) -> Result<Self, PsfError> {
+    const fn parse_psf2(data: &'a [u8]) -> Result<Self, PsfError> {
         if data.len() < size_of::<Psf2Header>() {
             return Err(PsfError::InvalidHeader);
         }
@@ -132,7 +150,11 @@ impl<'a> PsfFont<'a> {
         let char_size = header.char_size as usize;
         let width = header.width as usize;
         let height = header.height as usize;
-        let flags = PsfFlags::from_bits(header.flags).unwrap_or(PsfFlags::empty());
+        let flags = if let Some(f) = PsfFlags::from_bits(header.flags) {
+            f
+        } else {
+            PsfFlags::empty()
+        };
 
         // 计算字体数据开始位置
         let font_data_start = header_size;
@@ -146,7 +168,13 @@ impl<'a> PsfFont<'a> {
         let unicode_table = if flags.contains(PsfFlags::UNICODE_TABLE) {
             let table_start = font_data_end;
             if table_start < data.len() {
-                Some(&data[table_start..])
+                let t = unsafe {
+                    core::slice::from_raw_parts(
+                        data.as_ptr().offset(table_start as isize),
+                        data.len() - table_start,
+                    )
+                };
+                Some(t)
             } else {
                 None
             }
@@ -193,7 +221,7 @@ impl<'a> PsfFont<'a> {
         }
 
         let start = match self.version {
-            PsfVersion::V1 => core::mem::size_of::<Psf1Header>(),
+            PsfVersion::V1 => size_of::<Psf1Header>(),
             PsfVersion::V2 => {
                 let header = unsafe { &*(self.data.as_ptr() as *const Psf2Header) };
                 header.header_size as usize
