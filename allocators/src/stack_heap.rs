@@ -1,4 +1,4 @@
-use crate::{Locked, align_up};
+use crate::{align_up, Locked};
 use core::alloc::{GlobalAlloc, Layout};
 
 // 标志位操作

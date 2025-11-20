@@ -1,3 +1,6 @@
+#![feature(const_trait_impl)]
+#![feature(const_cmp)]
+
 pub trait Illegal {
     const ILLEGAL_VALUE: Self;
 }
@@ -60,6 +63,28 @@ impl<T> Optional<T> {
             None
         } else {
             Some(self.inner)
+        }
+    }
+
+    pub fn as_option_ref(&self) -> Option<&T>
+    where
+        T: Constraint,
+    {
+        if self.is_none() {
+            None
+        } else {
+            Some(&self.inner)
+        }
+    }
+
+    pub fn as_option_mut(&mut self) -> Option<&mut T>
+    where
+        T: Constraint,
+    {
+        if self.is_none() {
+            None
+        } else {
+            Some(&mut self.inner)
         }
     }
 }

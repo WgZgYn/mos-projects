@@ -2,7 +2,7 @@
 use core::fmt::Write;
 use vga::colors::TextModeColor;
 use vga::fonts::TEXT_8X16_FONT;
-use vga::vga::{VGA, VideoMode};
+use vga::vga::{VideoMode, VGA};
 use vga::writers::{Screen, ScreenCharacter, TextWriter};
 
 pub type Color = vga::colors::Color16;

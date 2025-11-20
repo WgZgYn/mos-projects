@@ -116,6 +116,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba1a4adcd36a49a08c4fb8c13c132fb1ea01a59681b305b46625095318328455"
 
 [[package]]
+name = "buddy_allocator"
+version = "0.11.0"
+dependencies = [
+ "spin 0.10.0",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -388,6 +395,7 @@ dependencies = [
  "acpi",
  "bitmap",
  "bootloader_api",
+ "buddy_allocator",
  "conquer-once 0.4.0",
  "crossbeam-queue",
  "futures-util",
@@ -486,6 +494,10 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "ppm"
+version = "0.1.0"
 
 [[package]]
 name = "proc-macro2"

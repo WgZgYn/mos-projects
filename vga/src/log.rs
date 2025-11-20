@@ -1,4 +1,4 @@
-use crate::vga::{CONSOLE, Color, ColorCode};
+use crate::vga::{Color, ColorCode, CONSOLE};
 use log::{Metadata, Record};
 use std::fmt::Write;
 pub struct KernelLogger;

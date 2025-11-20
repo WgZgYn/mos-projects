@@ -12,6 +12,9 @@
       <sourceFolder url="file://$MODULE_DIR$/bitmap/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/optional/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/psf/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/buddy_allocator/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/buddy_allocator/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ppm/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user_space/target" />
