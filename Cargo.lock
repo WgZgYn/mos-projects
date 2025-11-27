@@ -429,6 +429,7 @@ version = "0.1.0"
 dependencies = [
  "acid_alloc",
  "acpi",
+ "bitflags 2.10.0",
  "bitmap",
  "bootloader_api",
  "buddy_allocator",

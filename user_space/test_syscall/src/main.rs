@@ -7,15 +7,12 @@ use core::arch::{asm, naked_asm};
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
 pub extern "C" fn _start() -> ! {
-    naked_asm!(
-        "call user_main",
-        "ret",
-    )
+    naked_asm!("call user_main", "ret",)
 }
 
 #[unsafe(no_mangle)]
 fn user_main() {
-    let msg = "Hello, World! From test_syscall\n";
+    let msg = "Hello, World! From test_syscall, --hlt loop\n";
     unsafe {
         asm!(
         "mov rax, 1",
@@ -26,6 +23,11 @@ fn user_main() {
         in("r8") msg.as_ptr(),
         in("r9") msg.len()
         )
+    }
+    loop {
+        unsafe {
+            asm!("nop");
+        }
     }
 }
 
