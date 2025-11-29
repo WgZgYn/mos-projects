@@ -1,3 +1,9 @@
+#![no_std]
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::arch::{asm, naked_asm};
 use core::ops::DerefMut;
 use core::ptr::null_mut;
@@ -77,7 +83,7 @@ impl Runtime {
     pub fn run(&mut self) -> ! {
         while self.t_yield() {}
         loop {
-            std::hint::spin_loop()
+            core::hint::spin_loop();
         }
     }
 

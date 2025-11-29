@@ -15,7 +15,7 @@ test_syscall = { path = "user_space/test_syscall", artifact = "bin", target = "x
 ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
-members = ["allocators", "mos", "vga", "user_space/green_thread", "bitmap", "optional", "psf", "buddy_allocator", "ppm", "user_space/test_syscall"]
+members = ["allocators", "mos", "vga", "user_space/green_thread", "bitmap", "optional", "psf", "buddy_allocator", "ppm", "user_space/test_syscall", "ramfs_builder", "ramfs", "kernel_utils", "vfs", "user_space/test_gp", "user_space/test_rand", "user_space/test_exit"]
 
 [features]
 uefi = []
