@@ -10,4 +10,4 @@ edition = "2024"
 [features]
 no_std = []
 record = []
-default = []
+default = ["no_std"]
