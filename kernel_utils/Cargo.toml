@@ -1,0 +1,11 @@
+[package]
+name = "kernel_utils"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitmap = { path = "../bitmap" }
+spin = "0.10.0"
+log = "0.4.28"
+bitflags = "2.10.0"
+num_enum = { version = "0.7.5", default-features = false }
