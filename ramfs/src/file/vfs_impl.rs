@@ -2,13 +2,14 @@ use crate::constant::RAMFS_FRAME_SIZE_BYTE;
 use crate::file::File;
 use crate::fs::Error;
 use crate::fs_manager::RamFsManager;
-use kernel_utils::error;
+use kernel_utils::{error, info, trace};
 use vfs::{Read, Write};
 
 impl Read for File {
     type Error = Error;
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        trace!("file read");
         let gfs = RamFsManager::global().map_err(|_| Error::FileSystemError)?;
         let fs = gfs.lock();
         let inode = &fs[self.fd];
@@ -18,6 +19,7 @@ impl Read for File {
             return Ok(0);
         }
 
+        trace!("file size: {}", inode.size);
         let total_available = (inode.size as usize - self.cursor).min(buf.len());
         let mut read_total = 0;
 

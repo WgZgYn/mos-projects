@@ -1,10 +1,10 @@
 use crate::constant::{RAMFS_DIR_ITEM_SIZE_BYTE, RAMFS_FRAME_SIZE_BYTE, RAMFS_PATH_DELIMITER};
 use crate::frame::Frame;
-use crate::fs::{has_same_name, DirItem, Error, FileType, RamFs};
+use crate::fs::{DirItem, Error, FileType, RamFs, has_same_name};
 use crate::index::{FrameIndex, InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use crate::inode::IndexNode;
 use core::ops::{Index, IndexMut};
-use kernel_utils::{info, trace, Mutex};
+use kernel_utils::{Mutex, info, trace};
 
 static CURRENT_DIR: Mutex<InodeIndex> = Mutex::new(RAMFS_ROOT_INODE_INDEX);
 

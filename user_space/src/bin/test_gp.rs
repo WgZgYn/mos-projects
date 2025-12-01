@@ -89,6 +89,7 @@ fn get_random() -> u64 {
             "int 0x80",
             in("rax") 7,
             lateout("rax") r,
+            clobber_abi("sysv64"),
         )
     }
     r

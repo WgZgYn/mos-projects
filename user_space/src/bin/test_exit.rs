@@ -6,7 +6,7 @@ use core::arch::{asm, naked_asm};
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
 pub extern "C" fn _start() -> ! {
-    naked_asm!("call user_main", "ret",)
+    naked_asm!("jmp user_main")
 }
 
 #[unsafe(no_mangle)]
@@ -15,7 +15,7 @@ fn user_main() -> u64 {
     unsafe {
         asm!(
         "int 0x80",
-        in("rax") 7,
+        in("rax") 60,
         lateout("rax") r,
         )
     }

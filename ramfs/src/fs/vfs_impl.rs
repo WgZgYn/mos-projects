@@ -1,5 +1,5 @@
 use crate::file::File;
-use crate::fs::{has_same_name, DirItem, Error, FileType};
+use crate::fs::{DirItem, Error, FileType, has_same_name};
 use crate::fs_manager::RamFsManager;
 use crate::utils::FsTransaction;
 use kernel_utils::trace;

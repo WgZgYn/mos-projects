@@ -10,7 +10,6 @@ extern crate spin;
 #[macro_use]
 extern crate std;
 
-
 #[cfg(feature = "alloc")]
 mod frame;
 

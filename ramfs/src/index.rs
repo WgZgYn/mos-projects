@@ -1,5 +1,5 @@
-use core::ops::Deref;
 use crate::constant::RAMFS_ROOT_INODE_INDEX_USIZE;
+use core::ops::Deref;
 
 // this mod prevent construct with field
 pub const RAMFS_ROOT_INODE_INDEX: InodeIndex = InodeIndex(RAMFS_ROOT_INODE_INDEX_USIZE);

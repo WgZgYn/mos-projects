@@ -6,7 +6,7 @@ use crate::constant::{RAMFS_FRAME_BITS, RAMFS_INODE_BITS, RAMFS_INODE_COUNT};
 use crate::index::InodeIndex;
 use crate::inode::IndexNode;
 use core::ptr::NonNull;
-use kernel_utils::{string_enum, BitMap};
+use kernel_utils::{BitMap, string_enum};
 
 pub struct RamFsMappedRegion {
     start: NonNull<u8>,

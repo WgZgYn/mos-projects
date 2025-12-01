@@ -21,7 +21,8 @@ fn user_main() {
         "mov rdx, r9",
         "int 0x80",
         in("r8") msg.as_ptr(),
-        in("r9") msg.len()
+        in("r9") msg.len(),
+        clobber_abi("sysv64"),
         )
     }
     loop {

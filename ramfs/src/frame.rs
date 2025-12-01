@@ -1,6 +1,6 @@
-use core::ops::{Deref, DerefMut};
 use crate::constant::{RAMFS_FRAME_SIZE_BYTE, RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME};
 use crate::fs::DirItem;
+use core::ops::{Deref, DerefMut};
 
 pub struct Frame([u8; RAMFS_FRAME_SIZE_BYTE]);
 impl Deref for Frame {

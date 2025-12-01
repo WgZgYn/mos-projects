@@ -1,11 +1,11 @@
+use crate::RAMFS_MANAGER;
 use crate::constant::{
     RAMFS_FRAME_SIZE_BYTE, RAMFS_HEADER_SIZE_BYTE, RAMFS_MAGIC, RAMFS_ROOT_INODE_INDEX_USIZE,
 };
 use crate::fs::{FileSystemError, FileType, RamFs};
 use crate::index::RAMFS_ROOT_INODE_INDEX;
-use crate::RAMFS_MANAGER;
 use core::ops::Deref;
-use kernel_utils::{align_up, info, is_aligned, warn, Mutex, PageAligned};
+use kernel_utils::{Mutex, PageAligned, align_up, info, is_aligned, warn};
 
 pub struct RamFsManager<'a> {
     access: Mutex<&'a mut RamFs>,
@@ -99,8 +99,9 @@ impl<'a> RamFsManager<'a> {
             access: Mutex::new(header),
         })
     }
+
     #[cfg(feature = "embedded-ramfs")]
-    pub fn embedded_ramfs() -> &'static mut [u8] {
+    fn embedded_ramfs() -> &'static mut [u8] {
         pub static mut RAW_RAMFS_DATA: PageAligned<[u8; 1024 * 1024 * 4]> =
             PageAligned(*include_bytes!("../../ramfs.bin"));
         unsafe {

@@ -1,2 +1,2 @@
-pub use crate::fs::{RamFs, Error, FileSystemError, FileType};
+pub use crate::fs::{Error, FileSystemError, FileType, RamFs};
 pub use vfs::*;

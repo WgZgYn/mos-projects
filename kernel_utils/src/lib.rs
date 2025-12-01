@@ -73,8 +73,6 @@ macro_rules! string_enum {
     };
 }
 
-
-
 //
 #[macro_export]
 macro_rules! struct_field_public {
@@ -129,6 +127,3 @@ macro_rules! func_public {
 macro_rules! impl_func_public {
     () => {};
 }
-
-
-

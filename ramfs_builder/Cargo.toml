@@ -4,11 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ramfs = { path = "../ramfs" }
+ramfs = { path = "../ramfs", default-features = false }
 kernel_utils = { path = "../kernel_utils" }
 log = "0.4.28"
 env_logger = { version = "0.11.8" }
 
-[profile.release]
-lto = true
-opt-level = 3
