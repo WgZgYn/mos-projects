@@ -1,6 +1,9 @@
 #![no_std]
+extern crate alloc;
 
+use alloc::vec::Vec;
 pub use bitmap::BitMap;
+use core::sync::atomic::{AtomicU64, Ordering};
 pub use log::{debug, error, info, trace, warn};
 pub use num_enum::FromPrimitive;
 pub use spin::Mutex;
@@ -126,4 +129,27 @@ macro_rules! func_public {
 #[macro_export]
 macro_rules! impl_func_public {
     () => {};
+}
+
+pub struct IDAllocator {
+    next: AtomicU64,
+    reuse: Mutex<Vec<u64>>,
+}
+
+impl IDAllocator {
+    pub const fn new(start: u64) -> Self {
+        Self {
+            next: AtomicU64::new(start),
+            reuse: Mutex::new(Vec::new()),
+        }
+    }
+    pub fn allocate(&self) -> u64 {
+        self.reuse
+            .lock()
+            .pop()
+            .unwrap_or(self.next.fetch_add(1, Ordering::Relaxed))
+    }
+    pub fn free(&self, id: u64) {
+        self.reuse.lock().push(id);
+    }
 }
