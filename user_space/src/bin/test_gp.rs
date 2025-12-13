@@ -1,37 +1,26 @@
 #![no_std]
 #![no_main]
 
-use core::arch::{asm, naked_asm};
-use user_space::{call_sys_exit, call_sys_write_stdout};
+use user_space::{println, rand, write, STDOUT};
 
 #[unsafe(no_mangle)]
-#[unsafe(naked)]
-pub extern "C" fn _start() -> ! {
-    naked_asm!("jmp user_main")
-}
-
-#[unsafe(no_mangle)]
-pub fn user_main() {
-    let message = "----- test_gp ----- start";
-    call_sys_write_stdout(message.as_bytes());
-
+fn main() -> u64 {
+    println!("----- test_gp ----- start");
     let mut array: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
     for v in array.iter_mut() {
-        *v = get_random() as u8;
+        *v = rand() as u8;
     }
     print_array(&array);
     array.sort_unstable();
     print_array(&array);
-
-    let message = "----- test_gp ----- end";
-    call_sys_write_stdout(message.as_bytes());
-    call_sys_exit()
+    println!("----- test_gp ----- end");
+    0
 }
 
 pub fn print_array(array: &[u8]) {
     let mut buffer = [0; 128];
     let n = write_array(&mut buffer, array);
-    call_sys_write_stdout(&buffer[..n])
+    write(STDOUT, &buffer[..n]);
 }
 
 pub fn write_array(buffer: &mut [u8], array: &[u8]) -> usize {
@@ -58,22 +47,4 @@ pub fn write_num_u8(buffer: &mut [u8], mut num: u8) -> usize {
     }
     buffer[..w].reverse();
     w
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
-}
-
-fn get_random() -> u64 {
-    let r;
-    unsafe {
-        asm!(
-            "int 0x80",
-            in("rax") 7,
-            lateout("rax") r,
-            clobber_abi("sysv64"),
-        )
-    }
-    r
 }

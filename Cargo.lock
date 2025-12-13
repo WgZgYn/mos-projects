@@ -1104,6 +1104,8 @@ name = "user_space"
 version = "0.1.0"
 dependencies = [
  "bs_string",
+ "lazy_static",
+ "linked_list_allocator",
 ]
 
 [[package]]

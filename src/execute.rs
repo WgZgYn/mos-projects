@@ -15,18 +15,8 @@ pub fn parse_run(cli: Cli) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<(), Box<dyn Error>> {
-    if run.build_if_updated {
-        build(
-            Build {
-                target: BuildTarget::All,
-            },
-            profile,
-            boot_mode,
-        )?;
-    }
-
+    println!("Running on mode: {:?}:{:?}", profile, boot_mode);
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
-
     match boot_mode.unwrap_or(BootMode::Uefi) {
         BootMode::Uefi => cmd
             .arg("-bios")
@@ -37,12 +27,10 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
             .arg("-drive")
             .arg(format!("format=raw,file={}\\bios.img", BOOT_IMAGES_DIR,)),
     };
-
     cmd.arg("-serial").arg("stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
     cmd.arg("-m").arg("4G");
     cmd.arg("-device").arg("virtio-gpu-pci");
-
     if run.map_ramfs_memory {
         cmd.arg("-device")
             .arg("loader,file=./ramfs.bin,addr=0x50000000"); // This use pmemsave to save the memory
@@ -60,8 +48,8 @@ pub fn build(
         BuildTarget::Kernel => build_kernel(profile, boot_mode),
         BuildTarget::Ramfs => build_ramfs(profile),
         BuildTarget::All => {
-            build_kernel(profile, boot_mode)?;
-            build_ramfs(profile)
+            build_ramfs(profile)?;
+            build_kernel(profile, boot_mode)
         }
     }
 }

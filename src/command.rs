@@ -14,7 +14,7 @@ pub struct Cli {
     pub boot_mode: Option<BootMode>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum Profile {
     Debug,
     Release,
@@ -47,7 +47,7 @@ pub struct Build {
     pub target: BuildTarget,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, ValueEnum)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
 pub enum BootMode {
     Uefi,
     Bios,
