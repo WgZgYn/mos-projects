@@ -22,10 +22,10 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
             .arg("-bios")
             .arg(ovmf_prebuilt::ovmf_pure_efi())
             .arg("-drive")
-            .arg(format!("format=raw,file={}\\uefi.img", BOOT_IMAGES_DIR,)),
+            .arg(format!("format=raw,file={}/uefi.img", BOOT_IMAGES_DIR,)),
         BootMode::Bios => cmd
             .arg("-drive")
-            .arg(format!("format=raw,file={}\\bios.img", BOOT_IMAGES_DIR,)),
+            .arg(format!("format=raw,file={}/bios.img", BOOT_IMAGES_DIR,)),
     };
     cmd.arg("-serial").arg("stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
