@@ -1,5 +1,3 @@
-cargo-features = ["profile-rustflags"]
-
 [package]
 name = "mos-projects"
 version = "0.1.0"
@@ -27,10 +25,3 @@ default = ["uefi", "map_ramfs"]
 opt-level = 3
 debug = false
 lto = true
-
-
-[profile.release.package.user_space]
-rustflags = [
-    "-C",
-    "link-args=--image-base=0x400000",
-]
