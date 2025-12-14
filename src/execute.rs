@@ -27,10 +27,14 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
             .arg("-drive")
             .arg(format!("format=raw,file={}/bios.img", BOOT_IMAGES_DIR,)),
     };
-    cmd.arg("-serial").arg("stdio");
+    cmd.arg("-serial").arg("mon:stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
     cmd.arg("-m").arg("4G");
-    cmd.arg("-device").arg("virtio-gpu-pci");
+    
+    // cmd.arg("-device").arg("virtio-gpu-pci");
+    cmd.arg("-nographic");
+    cmd.arg("-vnc").arg(":0");
+
     if run.map_ramfs_memory {
         cmd.arg("-device")
             .arg("loader,file=./ramfs.bin,addr=0x50000000"); // This use pmemsave to save the memory
