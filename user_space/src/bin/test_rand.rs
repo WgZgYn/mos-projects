@@ -3,7 +3,8 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use alloc::string::String;
+use alloc::format;
+use alloc::string::{String, ToString};
 use bs_string::BString;
 use user_space::{println, rand, write, yield_, STDOUT};
 
@@ -14,7 +15,7 @@ fn main() -> u64 {
     let mut r = rand();
 
     let mut bs = unsafe { Box::<[u8; 10]>::new_uninit().assume_init() };
-    for i in 0..10 {
+    for i in 0..=10 {
         bs[i] = b'a' + i as u8;
     }
     write(STDOUT, bs.as_slice());
@@ -23,7 +24,6 @@ fn main() -> u64 {
         s.push('a');
     }
     write(STDOUT, s.as_bytes());
-
 
     let mut s = BString::<32>::new();
     println!("BString: ");
@@ -36,6 +36,16 @@ fn main() -> u64 {
     println!("--- call yield ---");
     yield_();
     write(STDOUT, s.as_bytes());
+
+    let s = 12345.to_string();
+    write(STDOUT, s.as_bytes());
+
+    let v = 5;
+    println!("v: {}", v);
+
+    let f = format!("number: {}, str: {}", s, String::from("Hello, world!"));
+    write(STDOUT, f.as_bytes());
+    println!("{}", f);
     println!("----- test_rand ----- end");
     0
 }
