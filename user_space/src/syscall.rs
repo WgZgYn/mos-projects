@@ -9,6 +9,7 @@ fn syscall(no: u64, args: [u64; 3]) -> u64 {
         in("rsi") args[1],
         in("rdx") args[2],
         lateout("rax") ret,
+        clobber_abi("C")
         )
     }
     ret

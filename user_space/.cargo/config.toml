@@ -4,3 +4,13 @@ build-std = ["core", "compiler_builtins", "alloc"]
 
 [build]
 target = "x86_64-unknown-none"
+
+[target.x86_64-unknown-none]
+rustflags = [
+    "-C", "link-arg=-no-pie",
+    "-C", "link-arg=-static",
+    "-C", "link-arg=--no-dynamic-linker",
+    "-C", "link-arg=--eh-frame-hdr",
+    "-C", "link-arg=-z",
+    "-C", "link-arg=norelro",
+]

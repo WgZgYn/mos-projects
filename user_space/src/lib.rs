@@ -3,7 +3,6 @@
 #![feature(linkage)]
 
 use crate::syscall::{sys_exit, sys_rand, sys_write, sys_yield};
-use linked_list_allocator::LockedHeap;
 
 pub mod console;
 mod syscall;
@@ -16,16 +15,7 @@ fn main() -> u64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() {
-    init_heap();
     exit(main());
-}
-
-#[global_allocator]
-static HEAP: LockedHeap = LockedHeap::empty();
-
-fn init_heap() {
-    static mut DATA: [u8; 4096] = [0; 4096];
-    unsafe { HEAP.lock().init(&raw mut DATA as _, 4096) };
 }
 
 #[panic_handler]
