@@ -27,12 +27,12 @@ impl Read for File {
             let frame_idx = self.cursor / RAMFS_FRAME_SIZE_BYTE;
             let offset = self.cursor % RAMFS_FRAME_SIZE_BYTE;
 
-            let frame_id = inode
-                .nth_frame(frame_idx)
+            let frame_idx = fs
+                .get_inode_nth_frame(self.fd, frame_idx)
                 .to_option()
                 .ok_or(Error::FileSystemError)?;
 
-            let frame = &fs[frame_id];
+            let frame = &fs[frame_idx];
 
             // 当前 frame 剩余可读空间
             let frame_remain = RAMFS_FRAME_SIZE_BYTE - offset;
@@ -62,11 +62,16 @@ impl Write for File {
 
         let mut total_written = 0;
         while !buf.is_empty() {
-            let frame_idx = self.cursor / RAMFS_FRAME_SIZE_BYTE;
+            let frame_nth = self.cursor / RAMFS_FRAME_SIZE_BYTE;
             let offset = self.cursor % RAMFS_FRAME_SIZE_BYTE;
 
-            let frame = fs.get_or_init_inode_nth_frame(self.fd, frame_idx)?;
-            let frame = &mut fs[frame];
+            trace!(
+                "cursor: {}, frame_nth: {frame_nth}, offset: {offset}",
+                self.cursor
+            );
+            let frame_idx = fs.get_or_init_inode_nth_frame(self.fd, frame_nth)?;
+            trace!("write to frame idx: {:?}", frame_idx);
+            let frame = &mut fs[frame_idx];
 
             let writable = (RAMFS_FRAME_SIZE_BYTE - offset).min(buf.len());
             frame[offset..offset + writable].copy_from_slice(&buf[..writable]);

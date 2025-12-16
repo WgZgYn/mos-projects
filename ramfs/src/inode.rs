@@ -1,18 +1,17 @@
+use crate::constant::inode;
 use crate::fs::{Error, FileType, name_of};
 use crate::index::{FramePtr, InodeIndex};
 use crate::utils::set_filename;
-use kernel_utils::info;
 
 #[repr(C)]
 pub struct IndexNode {
     pub file_type: FileType,
-    pub name: [u8; 32], // 32B
+    pub name: [u8; inode::RAMFS_FILENAME_BUFFER_SIZE], // 32B, the last must be '\0', so MAX 31 legal ascii byte char
     pub parent: InodeIndex,
     pub size: u64,
-    pub page_1: [FramePtr; 8], // store index but not address, currently dir only use the first direct page
-    pub page_2: FramePtr,
-    pub page_3: FramePtr,
-    // RAMFS_FILE_MAX_SIZE_BYTE
+    pub page_1: [FramePtr; inode::RAMFS_PAGE_1_COUNT], // store index but not address, currently dir only use the first direct page
+    pub page_2: [FramePtr; inode::RAMFS_PAGE_2_COUNT],
+    pub page_3: [FramePtr; inode::RAMFS_PAGE_3_COUNT],
 }
 
 impl IndexNode {
@@ -29,24 +28,14 @@ impl IndexNode {
         self.page_1
             .iter_mut()
             .for_each(|item| *item = FramePtr::none());
-        self.page_2 = FramePtr::none();
-        self.page_3 = FramePtr::none();
+        self.page_2
+            .iter_mut()
+            .for_each(|item| *item = FramePtr::none());
+        self.page_3
+            .iter_mut()
+            .for_each(|item| *item = FramePtr::none());
         Ok(())
     }
-    pub fn nth_frame(&self, i: usize) -> FramePtr {
-        if i >= 8 {
-            info!("Currently Not Supported multiple level frames");
-            return FramePtr::none();
-        }
-        self.page_1[i]
-    }
-    pub fn nth_frame_mut(&mut self, i: usize) -> &mut FramePtr {
-        if i >= 8 {
-            panic!("Currently Not Supported multiple level frames");
-        }
-        &mut self.page_1[i]
-    }
-
     pub fn name(&self) -> Option<&str> {
         name_of(&self.name)
     }

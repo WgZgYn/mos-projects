@@ -1,7 +1,5 @@
 use crate::RAMFS_MANAGER;
-use crate::constant::{
-    RAMFS_FRAME_SIZE_BYTE, RAMFS_HEADER_SIZE_BYTE, RAMFS_MAGIC, RAMFS_ROOT_INODE_INDEX_USIZE,
-};
+use crate::constant::{structs_size, RAMFS_FRAME_SIZE_BYTE, RAMFS_MAGIC, RAMFS_ROOT_INODE_INDEX_USIZE};
 use crate::fs::{FileSystemError, FileType, RamFs};
 use crate::index::RAMFS_ROOT_INODE_INDEX;
 use core::ops::Deref;
@@ -24,7 +22,7 @@ impl<'a> RamFsManager<'a> {
             return Err(FileSystemError::AlignError);
         }
         // check whether could trans to Ramfs Header
-        if meta.len() < RAMFS_HEADER_SIZE_BYTE {
+        if meta.len() < structs_size::RAMFS_HEADER_SIZE {
             return Err(FileSystemError::SizeError);
         }
         unsafe {
@@ -79,7 +77,7 @@ impl<'a> RamFsManager<'a> {
 
         header.frame_bitmap.set_all(); // means all unusable
         let frame_start = align_up(
-            header.fs_start() + RAMFS_HEADER_SIZE_BYTE as u64,
+            header.fs_start() + structs_size::RAMFS_HEADER_SIZE as u64,
             RAMFS_FRAME_SIZE_BYTE as _,
         );
         header.first_frame_offset = frame_start - header.fs_start();

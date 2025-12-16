@@ -52,14 +52,27 @@ impl<'a, 'b> Drop for FsTransaction<'a, 'b> {
     }
 }
 
-pub(crate) fn check_filename(name: &str) -> bool {
-    !(name.is_empty() || name.contains('/') || name.len() > RAMFS_MAX_FILENAME_BYTE)
+enum FileNameError {
+    Empty,
+    Illegal,
+    TooLong,
+}
+
+pub(crate) fn check_filename(name: &str) -> Result<(), Error> {
+    if name.is_empty() {
+        return Err(Error::FileNameIllegal);
+    }
+    if name.len() > RAMFS_MAX_FILENAME_BYTE {
+        return Err(Error::FileNameTooLong);
+    }
+    if name.contains(|c: char| !c.is_ascii() || c.is_ascii_control() || c == '/' || c == '\\') {
+        return Err(Error::FileNameIllegal);
+    }
+    Ok(())
 }
 
 pub(crate) fn set_filename(dst: &mut [u8; 32], name: &str) -> Result<(), Error> {
-    if !check_filename(name) {
-        return Err(Error::FileNameIllegal);
-    }
+    check_filename(name)?;
     let (data, zero) = dst.split_at_mut(name.len());
     data.copy_from_slice(name.as_bytes());
     zero.fill(0);

@@ -1,4 +1,4 @@
-use crate::constant::{RAMFS_FRAME_SIZE_BYTE, RAMFS_HEADER_SIZE_BYTE};
+use crate::constant::{structs_size, RAMFS_FRAME_SIZE_BYTE};
 use crate::fs::{FileSystemError, RamFs, RamFsMappedRegion};
 use core::ptr::NonNull;
 
@@ -8,7 +8,7 @@ impl RamFsMappedRegion {
             return Err(FileSystemError::AlignError);
         }
 
-        if size < RAMFS_HEADER_SIZE_BYTE {
+        if size < structs_size::RAMFS_HEADER_SIZE {
             return Err(FileSystemError::SizeError);
         }
 

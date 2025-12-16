@@ -41,6 +41,7 @@ string_enum! {
         FileSystemError,
         FileTypeIllegal,
         TryToFreeRoot,
+        NoSuchFrame,
     }
 
     #[derive(Debug)]

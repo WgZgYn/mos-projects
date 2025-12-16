@@ -1,5 +1,9 @@
-use crate::constant::{RAMFS_FRAME_SIZE_BYTE, RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME};
+use crate::constant::{
+    RAMFS_FRAME_INDEXS_PRE_FRAME, RAMFS_FRAME_SIZE_BYTE, RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME,
+    structs_size,
+};
 use crate::fs::DirItem;
+use crate::index::FramePtr;
 use core::ops::{Deref, DerefMut};
 
 pub struct Frame([u8; RAMFS_FRAME_SIZE_BYTE]);
@@ -33,5 +37,21 @@ impl Frame {
             panic!("Index out of range");
         }
         &mut self.as_dir_items_mut(RAMFS_FRAME_SIZE_BYTE / size_of::<DirItem>())[idx]
+    }
+    pub fn as_frame_ptrs(&self) -> &[FramePtr] {
+        unsafe {
+            core::slice::from_raw_parts(
+                self.0.as_ptr() as *const FramePtr,
+                RAMFS_FRAME_INDEXS_PRE_FRAME,
+            )
+        }
+    }
+    pub fn as_frame_ptrs_mut(&mut self) -> &mut [FramePtr] {
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                self.0.as_mut_ptr() as *mut FramePtr,
+                RAMFS_FRAME_INDEXS_PRE_FRAME,
+            )
+        }
     }
 }
