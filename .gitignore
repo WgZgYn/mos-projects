@@ -1,2 +1,4 @@
 /target
+/bootimages/*
 *.*/target
+ramfs.bin
