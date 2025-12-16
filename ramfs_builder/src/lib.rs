@@ -1,18 +1,11 @@
 use kernel_utils::PageAligned;
+use log::info;
+use ramfs::RamFsManager;
 use ramfs::fs::FileType;
 use ramfs::prelude::{FileSystem, Write as FWrite};
-use ramfs::RamFsManager;
-use std::ffi::OsString;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::mem::MaybeUninit;
-
-
-const USER_SPACE_DIR: &str = r#"F:\RustroverProjects\mos-projects\user_space"#;
-const BINS_DIR: &str = r#"F:\RustroverProjects\mos-projects\user_space\src\bin"#;
-const TARGET_DIR: &str = r#"F:\RustroverProjects\mos-projects\target\x86_64-unknown-none\release"#;
-const OUT_DIR: &str = r#"F:\RustroverProjects\mos-projects"#;
-
 
 pub struct RamfsBuilder {
     fs: &'static RamFsManager<'static>,
@@ -26,23 +19,27 @@ impl RamfsBuilder {
         let static_metadata = Box::leak(metadata);
         let gfs = RamFsManager::build(&mut static_metadata.0).map_err(|e| e.as_str())?;
         gfs.insert_to_global().expect("insert error");
+        info!("Creating 4MiB Ramfs");
         Ok(Self {
             fs: RamFsManager::global().map_err(|e| e.as_str())?,
         })
     }
 
     pub fn insert_file(&self, name: &str, mut f: File) -> Result<(), Box<dyn std::error::Error>> {
+        info!("Inserting file {}", name);
         let mut buffer = Vec::new();
         f.read_to_end(&mut buffer)?;
         let mut f = self
             .fs
-            .create(&name, FileType::File)
+            .create(name, FileType::File)
             .map_err(|e| e.as_str())?;
         f.write(buffer.as_slice()).map_err(|e| e.as_str())?;
         Ok(())
     }
 
     pub fn finish(&self, ramfs_out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        info!("Finished building Ramfs");
+        info!("Ramfs in {}", ramfs_out_path);
         let gfs = self.fs.lock();
         let bs = unsafe { gfs.as_raw_bytes() };
         let mut f = File::create(ramfs_out_path).map_err(|_| "Failed to create ramfs file")?;
@@ -50,14 +47,4 @@ impl RamfsBuilder {
         f.flush().map_err(|_| "Failed to flush ramfs file")?;
         Ok(())
     }
-}
-
-pub fn ramfs_build(elfs_path: Vec<(String, OsString)>) -> Result<(), Box<dyn std::error::Error>> {
-    let buidler = RamfsBuilder::new()?;
-    for (name, elf_path) in elfs_path {
-        println!("Loading elf: {}, elf_path: {:?}", name, elf_path);
-        buidler.insert_file(&name, File::open(elf_path)?)?;
-    }
-    buidler.finish("ramfs.bin")?;
-    Ok(())
 }

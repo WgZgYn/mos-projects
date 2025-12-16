@@ -12,6 +12,7 @@ clap = { version = "4.5.53", features = ["derive"] }
 env_logger = "0.11.8"
 ramfs_builder = { path = "ramfs_builder" }
 bootloader = "0.11.13"
+log = "0.4.28"
 
 [workspace]
 members = ["allocators", "mos", "vga", "user_space/green_thread", "bitmap", "optional", "psf", "buddy_allocator", "ppm", "ramfs_builder", "ramfs", "kernel_utils", "vfs", "user_space", "bs_string"]

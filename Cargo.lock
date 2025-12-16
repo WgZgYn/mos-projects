@@ -631,6 +631,7 @@ dependencies = [
  "bootloader",
  "clap",
  "env_logger",
+ "log",
  "ovmf-prebuilt",
  "ramfs_builder",
 ]
