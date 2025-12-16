@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::constant::RAMFS_MAX_FILENAME_BYTE;
 use crate::fs::Error;
 use crate::fs_manager::RamFsManager;
@@ -51,7 +53,6 @@ impl<'a, 'b> Drop for FsTransaction<'a, 'b> {
         }
     }
 }
-
 
 pub(crate) fn check_filename(name: &str) -> Result<(), Error> {
     if name.is_empty() {

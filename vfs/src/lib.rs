@@ -5,6 +5,7 @@ mod traits;
 
 extern crate alloc;
 
+use crate::path::{AsPath, Component};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -152,7 +153,7 @@ impl ReadOnlyFile {
         self.0.offset.fetch_add(n, Ordering::Relaxed);
         Ok(n)
     }
-    pub fn write(&self, buf: &[u8]) -> VfsResult<usize> {
+    pub fn write(&self, _buf: &[u8]) -> VfsResult<usize> {
         Err(VfsError::PermissionDenied)
     }
     pub fn seek(&self, offset: usize) {
@@ -161,15 +162,16 @@ impl ReadOnlyFile {
 }
 
 pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>> {
-    let mut cur = root;
-    for comp in path.split('/').filter(|s| !s.is_empty()) {
+    let mut cur = root.clone();
+    for comp in path.as_path() {
         if cur.file_type() != FileType::Directory {
             return Err(VfsError::NotDir);
         }
-        match comp {
-            "." => continue,
-            ".." => cur = cur.parent().unwrap_or(cur),
-            _ => cur = cur.lookup(comp)?,
+        cur = match comp {
+            Component::Root => root.clone(),
+            Component::Current => continue,
+            Component::Parent => cur.parent().unwrap_or(cur),
+            Component::Normal(path) => cur.lookup(path)?,
         }
     }
     Ok(cur)

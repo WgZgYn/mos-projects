@@ -45,15 +45,7 @@ impl RamFs {
         }
     }
     pub fn dir_items_from_idx(&self, idx: InodeIndex) -> Result<&[DirItem], Error> {
-        let inode = &self[idx];
-        if inode.file_type != FileType::Directory {
-            return Err(Error::FileTypeIllegal);
-        }
-        match inode.page_1[0].to_option() {
-            None => Ok(&[]),
-            Some(frame_idx) => Ok(self[frame_idx]
-                .as_dir_items(inode.size as usize / structs_size::RAMFS_DIR_ITEM_SIZE)),
-        }
+        self.dir_items(&self[idx])
     }
     fn search_file_at_dir(
         &self,
@@ -106,7 +98,6 @@ impl RamFs {
             return Err(Error::TryToFreeRoot);
         }
         let inode = &self[idx];
-        // TODO: support page_2
         for p in inode.page_1 {
             if let Some(p) = p.to_option() {
                 self.free_frame(p);
@@ -198,6 +189,8 @@ impl RamFs {
         info!("total frames: {}", self.total_frames());
     }
 
+    /// # Safety
+    /// the [`fs.start` `fs.start + fs.size`) must be legal
     pub unsafe fn as_raw_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self.fs_start() as *const u8, self.fs_size as usize) }
     }

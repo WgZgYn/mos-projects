@@ -167,6 +167,7 @@ impl IDAllocator {
     }
 }
 
+#[derive(Default)]
 pub struct LockedSession {
     mutex: Mutex<()>,
 }

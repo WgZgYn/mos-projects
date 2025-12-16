@@ -1,3 +1,4 @@
+/// `/` `.` `..`
 pub enum Component<'a> {
     Root,
     Current,
@@ -15,7 +16,7 @@ impl<T: AsRef<str>> AsPath for T {
     }
 }
 
-fn str_as_path(path: &str) -> impl Iterator<Item = Component<'_>> {
+pub fn str_as_path(path: &str) -> impl Iterator<Item = Component<'_>> {
     let path = path.trim();
     let mut start_with_root = None;
     if path.starts_with('/') {

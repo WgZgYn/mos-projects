@@ -61,7 +61,7 @@ pub fn build(
 pub fn build_kernel(profile: Profile, boot_mode: Option<BootMode>) -> Result<(), Box<dyn Error>> {
     let mut cmd = std::process::Command::new("cargo");
     cmd.current_dir(KERNEL_PATH)
-        .args(&["build", &format!("--{}", profile.as_str())]);
+        .args(["build", &format!("--{}", profile.as_str())]);
 
     match boot_mode {
         Some(BootMode::Uefi) => {
@@ -97,7 +97,7 @@ pub fn build_ramfs(profile: Profile) -> Result<(), Box<dyn Error>> {
     fn build_user_space_bins(profile: Profile) -> Result<(), Box<dyn Error>> {
         std::process::Command::new("cargo")
             .current_dir(USER_SPACE_PATH)
-            .args(&["build", &format!("--{}", profile.as_str())])
+            .args(["build", &format!("--{}", profile.as_str())])
             .status()?;
         Ok(())
     }
