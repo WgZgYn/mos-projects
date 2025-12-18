@@ -1,5 +1,5 @@
 use crate::constant::{
-    RAMFS_FRAME_INDEXS_PRE_FRAME, RAMFS_FRAME_SIZE_BYTE, RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME,
+    RAMFS_FRAME_INDEXS_PRE_FRAME, RAMFS_FRAME_SIZE_BYTE, RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME
 };
 use crate::fs::DirItem;
 use crate::index::FramePtr;
@@ -25,7 +25,7 @@ impl Frame {
     pub fn as_dir_items_mut(&mut self, len: usize) -> &mut [DirItem] {
         unsafe { core::slice::from_raw_parts_mut(self.as_mut_ptr().cast(), len) }
     }
-    fn nth_item(&self, idx: usize) -> &DirItem {
+    pub fn nth_item(&self, idx: usize) -> &DirItem {
         if idx >= RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME {
             panic!("Index out of range");
         }
@@ -54,5 +54,3 @@ impl Frame {
         }
     }
 }
-
-

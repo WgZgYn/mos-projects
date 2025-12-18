@@ -4,7 +4,7 @@
 use crate::command::Cli;
 use crate::execute::parse_run;
 use clap::Parser;
-use log::{LevelFilter, info};
+use log::LevelFilter;
 
 mod command;
 mod execute;

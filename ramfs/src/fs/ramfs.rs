@@ -1,4 +1,4 @@
-use crate::constant::{RAMFS_FRAME_SIZE_BYTE, RAMFS_PATH_DELIMITER, inode, structs_size};
+use crate::constant::{RAMFS_FRAME_SIZE_BYTE, RAMFS_PATH_DELIMITER, structs_size};
 use crate::frame::Frame;
 use crate::fs::{DirItem, Error, FileType, RamFs, has_same_name};
 use crate::index::{FrameAccess, FrameIndex, FramePtr, InodeIndex, RAMFS_ROOT_INODE_INDEX};
