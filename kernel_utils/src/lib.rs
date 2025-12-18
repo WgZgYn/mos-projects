@@ -5,8 +5,9 @@ use alloc::vec::Vec;
 pub use bitmap::BitMap;
 use core::sync::atomic::{AtomicU64, Ordering};
 pub use log::{debug, error, info, trace, warn};
-pub use num_enum::FromPrimitive;
-pub use spin::Mutex;
+pub use num_enum::FromPrimitive; 
+pub use spin::*;
+pub use bitflags::bitflags;
 
 pub const fn align_up(addr: u64, align: u64) -> u64 {
     (addr + align - 1) & !(align - 1)

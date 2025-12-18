@@ -83,6 +83,12 @@ impl DirItem {
     pub fn file_type(&self) -> FileType {
         self.file_type
     }
+    pub fn index(&self) -> InodeIndex {
+        self.index
+    }
+    pub fn has_same_name(&self, name: &str) -> bool {
+        has_same_name(&self.name, name)
+    }
 }
 
 fn has_same_name(raw: &[u8; 32], name: &str) -> bool {

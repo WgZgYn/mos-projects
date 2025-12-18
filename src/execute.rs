@@ -1,7 +1,7 @@
 use crate::command::{BootMode, Build, BuildTarget, Cli, Commands, Profile, Run};
 use crate::path::{
-    elf_target_path, rs_file_name, BOOT_IMAGES_DIR, KERNEL_NAME, KERNEL_PATH,
-    RAMFS_OUT_PATH, USER_SPACE_BINS_DIR, USER_SPACE_PATH,
+    BOOT_IMAGES_DIR, KERNEL_NAME, KERNEL_PATH, RAMFS_OUT_PATH, USER_SPACE_BINS_DIR,
+    USER_SPACE_PATH, elf_target_path, rs_file_name,
 };
 use ramfs_builder::RamfsBuilder;
 use std::error::Error;
@@ -30,7 +30,7 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
     cmd.arg("-serial").arg("mon:stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
     cmd.arg("-m").arg("4G");
-    
+
     // cmd.arg("-device").arg("virtio-gpu-pci");
     cmd.arg("-nographic");
     cmd.arg("-vnc").arg(":0");
@@ -81,10 +81,12 @@ pub fn build_kernel(profile: Profile, boot_mode: Option<BootMode>) -> Result<(),
     match boot_mode.unwrap_or(BootMode::Uefi) {
         BootMode::Uefi => {
             bootloader::UefiBoot::new(elf_target_path(profile, KERNEL_NAME).as_path())
+                .set_ramdisk(Path::new(RAMFS_OUT_PATH))
                 .create_disk_image(Path::new(BOOT_IMAGES_DIR).join("uefi.img").as_path())?;
         }
         BootMode::Bios => {
             bootloader::BiosBoot::new(elf_target_path(profile, KERNEL_NAME).as_path())
+                .set_ramdisk(Path::new(RAMFS_OUT_PATH))
                 .create_disk_image(Path::new(BOOT_IMAGES_DIR).join("bios.img").as_path())?;
         }
     }

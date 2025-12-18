@@ -40,11 +40,7 @@ impl<'a> FileSystem for RamFsManager<'a> {
         let mut fs = self.lock();
 
         // allocate inode
-        let inode_idx = fs.alloc_inode()?;
-        trans.backup(inode_idx, None);
-
-        // init the node
-        fs[inode_idx].init(file_type, name, parent_inode_idx)?; // if error, it will make trans drop to recover
+        let inode_idx = fs.new_inode(name, file_type, parent_inode_idx)?;
 
         // add it to the parent dir
         fs.add_dir_entry(parent_inode_idx, inode_idx)?;

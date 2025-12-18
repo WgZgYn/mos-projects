@@ -1129,6 +1129,9 @@ dependencies = [
 [[package]]
 name = "vfs"
 version = "0.1.0"
+dependencies = [
+ "kernel_utils",
+]
 
 [[package]]
 name = "vga"

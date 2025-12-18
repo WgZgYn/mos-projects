@@ -3,7 +3,6 @@
 #![no_main]
 extern crate alloc;
 
-
 #[global_allocator]
 pub static HEAP: LockedHeap = LockedHeap::empty();
 
@@ -12,13 +11,12 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use bs_string::BString;
 use linked_list_allocator::LockedHeap;
-use user_space::{println, rand, write, write_stdout_number, yield_, STDOUT};
-
-
+use user_space::{STDOUT, println, rand, write, write_stdout_number, yield_};
 
 pub fn init_heap() {
-    static mut DATA: [u8; 4096] = [0; 4096];
-    unsafe { HEAP.lock().init(&raw mut DATA as _, 4096) };
+    const HEAP_SIZE: usize = 10240;
+    static mut DATA: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
+    unsafe { HEAP.lock().init(&raw mut DATA as _, HEAP_SIZE) };
 }
 
 #[unsafe(no_mangle)]
@@ -65,7 +63,10 @@ fn main() -> u64 {
         nums.push(i * 2);
     }
     let v = 5;
-    println!("test println! const: {}, var: {}, arr: {:?}, success", 4, v, nums);
+    println!(
+        "test println! const: {}, var: {}, arr: {:?}, success",
+        4, v, nums
+    );
 
     println!("----- test_rand ----- end");
     0

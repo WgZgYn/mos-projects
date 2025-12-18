@@ -1,5 +1,7 @@
 use crate::RAMFS_MANAGER;
-use crate::constant::{structs_size, RAMFS_FRAME_SIZE_BYTE, RAMFS_MAGIC, RAMFS_ROOT_INODE_INDEX_USIZE};
+use crate::constant::{
+    RAMFS_FRAME_SIZE_BYTE, RAMFS_MAGIC, RAMFS_ROOT_INODE_INDEX_USIZE, structs_size,
+};
 use crate::fs::{FileSystemError, FileType, RamFs};
 use crate::index::RAMFS_ROOT_INODE_INDEX;
 use core::ops::Deref;
@@ -90,7 +92,12 @@ impl<'a> RamFsManager<'a> {
         header.inode_bitmap.set(RAMFS_ROOT_INODE_INDEX_USIZE);
         let root_inode = &mut header.inodes[RAMFS_ROOT_INODE_INDEX_USIZE];
         root_inode
-            .init(FileType::Directory, "ramfs", RAMFS_ROOT_INODE_INDEX)
+            .init(
+                FileType::Directory,
+                "ramfs",
+                RAMFS_ROOT_INODE_INDEX,
+                RAMFS_ROOT_INODE_INDEX,
+            )
             .map_err(|_| FileSystemError::BuildError)?;
 
         Ok(Self {

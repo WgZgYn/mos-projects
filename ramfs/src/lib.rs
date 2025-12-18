@@ -10,6 +10,7 @@ mod index;
 mod inode;
 pub mod prelude;
 mod utils;
+pub mod vfs;
 
 pub use fs_manager::RamFsManager;
 

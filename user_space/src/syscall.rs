@@ -30,3 +30,6 @@ pub fn sys_rand() -> u64 {
 pub fn sys_yield() -> u64 {
     syscall(24, [0, 0, 0])
 }
+pub fn sys_exec(path: &str, priority: u8) -> u64 {
+    syscall(59, [path.as_ptr() as _, path.len() as _, priority as _])
+}

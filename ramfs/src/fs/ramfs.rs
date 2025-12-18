@@ -27,11 +27,6 @@ impl RamFs {
     pub fn total_frames(&self) -> u64 {
         (self.fs_end() - self.fs_first_frame_addr()) / (RAMFS_FRAME_SIZE_BYTE as u64)
     }
-    // pub fn borrow_mut(&self) -> &mut Self {
-    //     let ptr = self as *const RamFs;
-    //     let mut c = NonNull::new(ptr as *mut _).unwrap();
-    //     unsafe { c.as_mut() }
-    // }
     pub(crate) fn resolve_path<'a>(&self, path: &'a str) -> Result<(InodeIndex, &'a str), Error> {
         match path.rsplit_once('/') {
             None => Ok((*CURRENT_DIR.lock(), path)),
@@ -40,6 +35,17 @@ impl RamFs {
         }
     }
     pub fn dir_items(&self, inode: &IndexNode) -> Result<&[DirItem], Error> {
+        if inode.file_type != FileType::Directory {
+            return Err(Error::FileTypeIllegal);
+        }
+        match inode.page_1[0].to_option() {
+            None => Ok(&[]),
+            Some(frame_idx) => Ok(self[frame_idx]
+                .as_dir_items(inode.size as usize / structs_size::RAMFS_DIR_ITEM_SIZE)),
+        }
+    }
+    pub fn dir_items_from_idx(&self, idx: InodeIndex) -> Result<&[DirItem], Error> {
+        let inode = &self[idx];
         if inode.file_type != FileType::Directory {
             return Err(Error::FileTypeIllegal);
         }
@@ -109,6 +115,16 @@ impl RamFs {
         self.inode_bitmap.clear(*idx);
         Ok(())
     }
+    pub fn new_inode(
+        &mut self,
+        name: &str,
+        file_type: FileType,
+        parent: InodeIndex,
+    ) -> Result<InodeIndex, Error> {
+        let idx = self.alloc_inode()?;
+        self[idx].init(file_type, name, parent, idx)?;
+        Ok(idx)
+    }
     pub(crate) fn alloc_frame(&mut self) -> Result<FrameIndex, Error> {
         let idx = self
             .frame_bitmap
@@ -170,7 +186,7 @@ impl RamFs {
 
     pub fn ls(&self) -> &[DirItem] {
         let dir = *CURRENT_DIR.lock();
-        self.dir_items(&self[dir]).unwrap_or(&[])
+        self.dir_items_from_idx(dir).unwrap_or(&[])
     }
 
     pub fn print_info(&self) {

@@ -1,6 +1,5 @@
 use crate::constant::{
     RAMFS_FRAME_INDEXS_PRE_FRAME, RAMFS_FRAME_SIZE_BYTE, RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME,
-    structs_size,
 };
 use crate::fs::DirItem;
 use crate::index::FramePtr;
@@ -21,10 +20,10 @@ impl DerefMut for Frame {
 }
 impl Frame {
     pub fn as_dir_items(&self, len: usize) -> &[DirItem] {
-        unsafe { core::slice::from_raw_parts(&self.0 as *const _ as *const DirItem, len) }
+        unsafe { core::slice::from_raw_parts(self.as_ptr().cast(), len) }
     }
     pub fn as_dir_items_mut(&mut self, len: usize) -> &mut [DirItem] {
-        unsafe { core::slice::from_raw_parts_mut(&mut self.0 as *mut _ as *mut DirItem, len) }
+        unsafe { core::slice::from_raw_parts_mut(self.as_mut_ptr().cast(), len) }
     }
     fn nth_item(&self, idx: usize) -> &DirItem {
         if idx >= RAMFS_MAX_DIR_ITEM_COUNT_PRE_FRAME {
@@ -55,3 +54,5 @@ impl Frame {
         }
     }
 }
+
+

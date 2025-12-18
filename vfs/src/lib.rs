@@ -1,5 +1,18 @@
 #![no_std]
 
+mod path;
+mod traits;
+
+extern crate alloc;
+
+use alloc::borrow::ToOwned;
+use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::sync::Arc;
+use core::ops::Deref;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use kernel_utils::{RwLock, bitflags};
+
 pub trait Read {
     type Error;
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
@@ -8,13 +21,6 @@ pub trait Read {
 pub trait Write {
     type Error;
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
-}
-
-pub trait File {
-    type Error;
-    fn read_at(&mut self, buf: &mut [u8], offset: u64) -> Result<usize, Self::Error>;
-    fn write_at(&mut self, buf: &[u8], offset: u64) -> Result<usize, Self::Error>;
-    fn len(&self) -> u64;
 }
 
 pub enum OpenFlag {
@@ -39,4 +45,175 @@ pub trait FileSystem {
     fn exists(&self, path: &str) -> bool {
         self.open(path, OpenFlag::ReadOnly).is_ok()
     }
+}
+
+// below is dynamic dispatch compatible
+#[derive(Debug)]
+pub enum VfsError {
+    NotFound,
+    NotDir,
+    NotFile,
+    NoSpace,
+    PermissionDenied,
+    IoError,
+    AlreadyExists,
+}
+
+type VfsResult<T> = Result<T, VfsError>;
+
+pub enum FileType {
+    Regular,
+    Directory,
+    CharDevice(u32),
+    BlockDevice(u32),
+    Socket,
+    Fifo,
+    Link,
+}
+
+pub struct DirEntry {
+    name: String,
+    ft: FileType,
+    node: Arc<dyn Inode>,
+}
+
+impl DirEntry {
+    pub fn new(name: String, ft: FileType, node: Arc<dyn Inode>) -> Self {
+        DirEntry { name, ft, node }
+    }
+}
+
+bitflags! {
+    pub struct MountFlags: u32 {
+
+    }
+}
+
+pub trait VFS {
+    fn name(&self) -> Option<&str>;
+    fn mount(&self, dev: Option<&str>, flags: MountFlags) -> VfsResult<Arc<dyn SuperBlock>>;
+}
+
+pub trait SuperBlock {
+    fn root(&self) -> Arc<dyn Inode>;
+}
+
+pub trait Inode: Send + Sync + FileOps + DirInode {
+    fn meta_data(&self) -> &[u8];
+    fn size(&self) -> u64;
+    fn is_dir(&self) -> bool;
+    fn parent(&self) -> Option<Arc<dyn Inode>>;
+    fn lookup(&self, name: &str) -> VfsResult<Arc<dyn Inode>>;
+    fn create(&self, name: &str, is_dir: bool);
+    fn file_type(&self) -> FileType;
+}
+
+pub trait FileOps: Send + Sync {
+    fn read_at(&self, offset: usize, buf: &mut [u8]) -> VfsResult<usize>;
+    fn write_at(&self, offset: usize, buf: &[u8]) -> VfsResult<usize>;
+}
+
+pub trait DirInode {
+    fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>>;
+}
+
+pub struct File {
+    inode: Arc<dyn FileOps>,
+    offset: AtomicUsize,
+}
+
+impl File {
+    pub fn new(inode: Arc<dyn FileOps>) -> Self {
+        Self {
+            inode,
+            offset: AtomicUsize::new(0),
+        }
+    }
+    pub fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
+        let off = self.offset.load(Ordering::Relaxed);
+        let n = self.inode.read_at(off, buf)?;
+        self.offset.fetch_add(n, Ordering::Relaxed);
+        Ok(n)
+    }
+    pub fn write(&self, buf: &[u8]) -> VfsResult<usize> {
+        let off = self.offset.load(Ordering::Relaxed);
+        let n = self.inode.write_at(off, buf)?;
+        self.offset.fetch_add(n, Ordering::Relaxed);
+        Ok(n)
+    }
+    pub fn seek(&self, offset: usize) {
+        self.offset.store(offset, Ordering::SeqCst);
+    }
+    pub fn dup(self) -> DupFile {
+        DupFile(Arc::new(self))
+    }
+}
+
+#[derive(Clone)]
+pub struct DupFile(Arc<File>);
+impl Deref for DupFile {
+    type Target = File;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>> {
+    let mut cur = root;
+    for comp in path.split('/').filter(|s| !s.is_empty()) {
+        if !cur.is_dir() {
+            return Err(VfsError::NotDir);
+        }
+        match comp {
+            "." => continue,
+            ".." => cur = cur.parent().unwrap_or(cur),
+            _ => cur = cur.lookup(comp)?,
+        }
+    }
+    Ok(cur)
+}
+
+pub fn vfs_open(root: Arc<dyn Inode>, path: &str) -> VfsResult<Arc<dyn Inode>> {
+    lookup_path(path, root)
+}
+
+pub struct Dentry {
+    name: String,
+    inode: Arc<dyn Inode>,
+    parent: Option<Arc<RwLock<Dentry>>>,
+    children: RwLock<BTreeMap<String, Arc<RwLock<Dentry>>>>,
+    mounted: Option<Arc<Mount>>,
+}
+
+impl Dentry {
+    pub fn new(name: String, inode: Arc<dyn Inode>, parent: Option<Arc<RwLock<Dentry>>>) -> Self {
+        Self {
+            name,
+            inode,
+            parent,
+            children: Default::default(),
+            mounted: None,
+        }
+    }
+
+    pub fn lookup(&self, name: &str) -> VfsResult<Arc<RwLock<Dentry>>> {
+        self.children
+            .read()
+            .get(name)
+            .cloned()
+            .ok_or(VfsError::NotFound)
+    }
+
+    pub fn add_child(&self, name: &str, dentry: Arc<RwLock<Dentry>>) -> VfsResult<()> {
+        let mut children = self.children.write();
+        if children.contains_key(name) {
+            return Err(VfsError::AlreadyExists);
+        }
+        children.insert(name.to_owned(), dentry);
+        Ok(())
+    }
+}
+
+pub struct Mount {
+    root: Arc<dyn Inode>,
 }
