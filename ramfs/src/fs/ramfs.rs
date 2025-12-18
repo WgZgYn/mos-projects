@@ -1,4 +1,4 @@
-use crate::constant::{RAMFS_FRAME_SIZE_BYTE, RAMFS_PATH_DELIMITER, inode, structs_size};
+use crate::constant::{RAMFS_FRAME_SIZE_BYTE, RAMFS_PATH_DELIMITER, structs_size};
 use crate::frame::Frame;
 use crate::fs::{DirItem, Error, FileType, RamFs, has_same_name};
 use crate::index::{FrameAccess, FrameIndex, FramePtr, InodeIndex, RAMFS_ROOT_INODE_INDEX};
@@ -27,11 +27,6 @@ impl RamFs {
     pub fn total_frames(&self) -> u64 {
         (self.fs_end() - self.fs_first_frame_addr()) / (RAMFS_FRAME_SIZE_BYTE as u64)
     }
-    // pub fn borrow_mut(&self) -> &mut Self {
-    //     let ptr = self as *const RamFs;
-    //     let mut c = NonNull::new(ptr as *mut _).unwrap();
-    //     unsafe { c.as_mut() }
-    // }
     pub(crate) fn resolve_path<'a>(&self, path: &'a str) -> Result<(InodeIndex, &'a str), Error> {
         match path.rsplit_once('/') {
             None => Ok((*CURRENT_DIR.lock(), path)),

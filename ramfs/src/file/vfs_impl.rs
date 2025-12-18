@@ -2,7 +2,7 @@ use crate::constant::RAMFS_FRAME_SIZE_BYTE;
 use crate::file::File;
 use crate::fs::Error;
 use crate::fs_manager::RamFsManager;
-use kernel_utils::{error, info, trace};
+use kernel_utils::{error, trace};
 use vfs::{Read, Write};
 
 impl Read for File {
