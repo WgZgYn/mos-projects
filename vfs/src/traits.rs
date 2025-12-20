@@ -1,19 +1,9 @@
-use crate::{DirEntry, FileOps, FileType, VfsResult};
+use crate::{DirEntry, FileOps, FileType, OpenFlags, VfsResult};
 use alloc::boxed::Box;
 use alloc::sync::Arc;
-use kernel_utils::bitflags;
 
 pub trait InodeOps {}
-bitflags! {
-    pub struct OpenFlags: u32 {
-        const READ = 1;
-        const WRITE = 2;
-        const READ_WRITE = OpenFlags::READ.bits() | OpenFlags::WRITE.bits();
-        const CREATE = 4;
-        const APPEND = 8;
-        const TRUNC = 16;
-    }
-}
+
 
 pub trait Inode: Send + Sync {
     fn id(&self) -> u64;

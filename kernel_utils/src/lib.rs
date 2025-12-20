@@ -2,12 +2,13 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+pub use bitflags::bitflags;
 pub use bitmap::BitMap;
+use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicU64, Ordering};
 pub use log::{debug, error, info, trace, warn};
-pub use num_enum::FromPrimitive; 
+pub use num_enum::FromPrimitive;
 pub use spin::*;
-pub use bitflags::bitflags;
 
 pub const fn align_up(addr: u64, align: u64) -> u64 {
     (addr + align - 1) & !(align - 1)
@@ -24,7 +25,18 @@ pub const fn is_aligned(addr: u64, align: u64) -> bool {
 #[derive(Clone, Default)]
 #[repr(align(4096))]
 pub struct PageAligned<T>(pub T);
+impl<T> Deref for PageAligned<T> {
+    type Target = T;
 
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T> DerefMut for PageAligned<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 #[macro_export]
 macro_rules! string_enum {
     (

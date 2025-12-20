@@ -1,24 +1,17 @@
-use crate::RAMFS_MANAGER;
 use crate::constant::{
     RAMFS_FRAME_SIZE_BYTE, RAMFS_MAGIC, RAMFS_ROOT_INODE_INDEX_USIZE, structs_size,
 };
 use crate::fs::{FileSystemError, FileType, RamFs};
 use crate::index::RAMFS_ROOT_INODE_INDEX;
 use core::ops::Deref;
-use kernel_utils::{Mutex, PageAligned, align_up, info, is_aligned, warn};
+use kernel_utils::{Mutex, align_up, info, is_aligned, warn};
 
 pub struct RamFsManager<'a> {
     access: Mutex<&'a mut RamFs>,
 }
 
 impl<'a> RamFsManager<'a> {
-    // the ramfs should be checked
-    pub fn from_ramfs(ramfs: &'a mut RamFs) -> Self {
-        Self {
-            access: Mutex::new(ramfs),
-        }
-    }
-    pub fn check_load(meta: &'a mut [u8]) -> Result<&'a mut RamFs, FileSystemError> {
+    fn check_load(meta: &'a mut [u8]) -> Result<&'a mut RamFs, FileSystemError> {
         // should pass aligned mem field
         if !is_aligned(meta.as_ptr() as u64, 4096) {
             return Err(FileSystemError::AlignError);
@@ -103,43 +96,6 @@ impl<'a> RamFsManager<'a> {
         Ok(Self {
             access: Mutex::new(header),
         })
-    }
-
-    #[cfg(feature = "embedded-ramfs")]
-    fn embedded_ramfs() -> &'static mut [u8] {
-        pub static mut RAW_RAMFS_DATA: PageAligned<[u8; 1024 * 1024 * 4]> =
-            PageAligned(*include_bytes!("../../ramfs.bin"));
-        unsafe {
-            let a = &raw mut RAW_RAMFS_DATA;
-            core::slice::from_raw_parts_mut(a as *mut u8, 1024 * 1024 * 4)
-        }
-    }
-    pub fn insert_to_global(self) -> Result<(), FileSystemError>
-    where
-        'a: 'static,
-    {
-        RAMFS_MANAGER
-            .try_init_once(|| self)
-            .map_err(|_| FileSystemError::LoadError)
-    }
-    pub fn global() -> Result<&'static Self, FileSystemError> {
-        #[cfg(feature = "embedded-ramfs")]
-        {
-            RAMFS_MANAGER
-                .try_get_or_init(|| {
-                    Self::load(Self::embedded_ramfs())
-                        .map_err(|_| FileSystemError::LoadError)
-                        .expect("embedded ramfs error")
-                })
-                .map_err(|_| FileSystemError::LoadError)
-        }
-
-        #[cfg(not(feature = "embedded-ramfs"))]
-        {
-            RAMFS_MANAGER
-                .try_get()
-                .map_err(|_| FileSystemError::LoadError)
-        }
     }
 }
 

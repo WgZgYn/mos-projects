@@ -1,17 +1,9 @@
 mod ramfs;
-mod region;
-mod vfs_impl;
 
 use crate::constant::{RAMFS_FRAME_BITS, RAMFS_INODE_BITS, RAMFS_INODE_COUNT};
 use crate::index::InodeIndex;
 use crate::inode::IndexNode;
-use core::ptr::NonNull;
-use kernel_utils::{BitMap, string_enum};
-
-pub struct RamFsMappedRegion {
-    start: NonNull<u8>,
-    size: usize,
-}
+use kernel_utils::{string_enum, BitMap};
 
 // WARNING: The repr(C) is important, if not the compiler will reorder the fields
 // It will cause ambiguous result
@@ -73,12 +65,7 @@ pub struct DirItem {
 
 impl DirItem {
     pub fn name(&self) -> &str {
-        for i in 0..self.name.len() {
-            if self.name[i] == 0 {
-                return core::str::from_utf8(&self.name[..i]).unwrap_or("");
-            }
-        }
-        ""
+        name_of(&self.name).unwrap_or("")
     }
     pub fn file_type(&self) -> FileType {
         self.file_type
@@ -99,7 +86,7 @@ fn has_same_name(raw: &[u8; 32], name: &str) -> bool {
     &raw[..bs.len()] == bs && raw[bs.len()] == b'\0'
 }
 
-pub fn name_of(raw: &[u8; 32]) -> Option<&str> {
+pub(crate) fn name_of(raw: &[u8; 32]) -> Option<&str> {
     for i in 0..raw.len() {
         if raw[i] == 0 {
             return core::str::from_utf8(&raw[..i]).ok();

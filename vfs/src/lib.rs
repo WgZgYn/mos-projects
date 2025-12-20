@@ -13,40 +13,6 @@ use core::ops::Deref;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel_utils::{RwLock, bitflags};
 
-pub trait Read {
-    type Error;
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
-}
-
-pub trait Write {
-    type Error;
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
-}
-
-pub enum OpenFlag {
-    ReadOnly,
-    WriteOnly,
-    ReadWrite,
-    Binary,
-    Append,
-}
-
-pub trait Path {}
-
-pub trait FileSystem {
-    type Error;
-    type FileType;
-    type File: Read + Write;
-
-    fn open(&self, path: &str, open_flag: OpenFlag) -> Result<Self::File, Self::Error>;
-    fn create(&self, path: &str, file_type: Self::FileType) -> Result<Self::File, Self::Error>;
-    fn remove(&self, path: &str) -> Result<(), Self::Error>;
-    fn close(&self, file: Self::File) -> Result<(), Self::Error>;
-    fn exists(&self, path: &str) -> bool {
-        self.open(path, OpenFlag::ReadOnly).is_ok()
-    }
-}
-
 // below is dynamic dispatch compatible
 #[derive(Debug)]
 pub enum VfsError {
@@ -59,8 +25,9 @@ pub enum VfsError {
     AlreadyExists,
 }
 
-type VfsResult<T> = Result<T, VfsError>;
+pub type VfsResult<T> = Result<T, VfsError>;
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum FileType {
     Regular,
     Directory,
@@ -69,6 +36,17 @@ pub enum FileType {
     Socket,
     Fifo,
     Link,
+}
+
+bitflags! {
+    pub struct OpenFlags: u32 {
+        const READ = 1;
+        const WRITE = 2;
+        const READ_WRITE = OpenFlags::READ.bits() | OpenFlags::WRITE.bits();
+        const CREATE = 4;
+        const APPEND = 8;
+        const TRUNC = 16;
+    }
 }
 
 pub struct DirEntry {
@@ -80,6 +58,12 @@ pub struct DirEntry {
 impl DirEntry {
     pub fn new(name: String, ft: FileType, node: Arc<dyn Inode>) -> Self {
         DirEntry { name, ft, node }
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn file_type(&self) -> FileType {
+        self.ft
     }
 }
 
@@ -100,11 +84,10 @@ pub trait SuperBlock {
 
 pub trait Inode: Send + Sync + FileOps + DirInode {
     fn meta_data(&self) -> &[u8];
-    fn size(&self) -> u64;
-    fn is_dir(&self) -> bool;
     fn parent(&self) -> Option<Arc<dyn Inode>>;
     fn lookup(&self, name: &str) -> VfsResult<Arc<dyn Inode>>;
-    fn create(&self, name: &str, is_dir: bool);
+    fn create(&self, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
+    fn file_size(&self) -> u64;
     fn file_type(&self) -> FileType;
 }
 
@@ -158,10 +141,29 @@ impl Deref for DupFile {
     }
 }
 
+pub struct ReadOnlyFile(File);
+impl ReadOnlyFile {
+    fn new(file: File) -> Self {
+        Self(file)
+    }
+    pub fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
+        let off = self.0.offset.load(Ordering::Relaxed);
+        let n = self.0.inode.read_at(off, buf)?;
+        self.0.offset.fetch_add(n, Ordering::Relaxed);
+        Ok(n)
+    }
+    pub fn write(&self, buf: &[u8]) -> VfsResult<usize> {
+        Err(VfsError::PermissionDenied)
+    }
+    pub fn seek(&self, offset: usize) {
+        self.0.offset.store(offset, Ordering::SeqCst);
+    }
+}
+
 pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>> {
     let mut cur = root;
     for comp in path.split('/').filter(|s| !s.is_empty()) {
-        if !cur.is_dir() {
+        if cur.file_type() != FileType::Directory {
             return Err(VfsError::NotDir);
         }
         match comp {
@@ -173,8 +175,19 @@ pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>
     Ok(cur)
 }
 
-pub fn vfs_open(root: Arc<dyn Inode>, path: &str) -> VfsResult<Arc<dyn Inode>> {
-    lookup_path(path, root)
+pub fn vfs_open(root: Arc<dyn Inode>, path: &str, open_flags: OpenFlags) -> VfsResult<File> {
+    let node = lookup_path(path, root)?;
+    if node.file_type() != FileType::Directory && node.file_type() != FileType::Regular {
+        return Err(VfsError::NotFile);
+    }
+    let mut offset = 0;
+    if open_flags.contains(OpenFlags::APPEND) {
+        offset = node.file_size() as usize;
+    }
+    Ok(File {
+        inode: node,
+        offset: AtomicUsize::new(offset),
+    })
 }
 
 pub struct Dentry {
@@ -216,4 +229,5 @@ impl Dentry {
 
 pub struct Mount {
     root: Arc<dyn Inode>,
+    mount: Arc<dyn Inode>,
 }

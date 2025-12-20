@@ -52,11 +52,6 @@ impl<'a, 'b> Drop for FsTransaction<'a, 'b> {
     }
 }
 
-enum FileNameError {
-    Empty,
-    Illegal,
-    TooLong,
-}
 
 pub(crate) fn check_filename(name: &str) -> Result<(), Error> {
     if name.is_empty() {

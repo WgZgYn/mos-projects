@@ -1,5 +1,4 @@
 use crate::constant::{inode, RAMFS_ROOT_INODE_INDEX_USIZE};
-use crate::fs::{FileType, RamFs};
 use core::ops::Deref;
 
 // this mod prevent construct with field
@@ -102,24 +101,6 @@ impl FrameAccess {
             let index2 = remain / inode::RAMFS_FRAMES_PRE_PTR_2;
             let index3 = remain % inode::RAMFS_FRAMES_PRE_PTR_2;
             Some(FrameAccess::Level3(index1, index2, index3))
-        } else {
-            None
-        }
-    }
-}
-
-pub struct DnodeIndex(InodeIndex);
-impl Deref for DnodeIndex {
-    type Target = InodeIndex;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DnodeIndex {
-    pub fn new(fs: &RamFs, idx: InodeIndex) -> Option<Self> {
-        if fs[idx].file_type == FileType::Directory {
-            Some(DnodeIndex(idx))
         } else {
             None
         }

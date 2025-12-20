@@ -816,6 +816,7 @@ dependencies = [
  "kernel_utils",
  "log",
  "ramfs",
+ "vfs",
 ]
 
 [[package]]
