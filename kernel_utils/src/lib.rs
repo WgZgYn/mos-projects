@@ -182,4 +182,10 @@ impl LockedSession {
         f();
         drop(guard);
     }
+    pub fn lock(&self) {
+        self.mutex.lock();
+    }
+    pub fn unlock(&self) {
+        self.mutex.lock();
+    }
 }
