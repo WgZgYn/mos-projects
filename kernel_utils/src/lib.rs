@@ -166,3 +166,20 @@ impl IDAllocator {
         self.reuse.lock().push(id);
     }
 }
+
+pub struct LockedSession {
+    mutex: Mutex<()>,
+}
+
+impl LockedSession {
+    pub const fn new() -> Self {
+        Self {
+            mutex: Mutex::new(()),
+        }
+    }
+    pub fn access<R>(&self, f: impl FnOnce() -> R) {
+        let guard = self.mutex.lock();
+        f();
+        drop(guard);
+    }
+}

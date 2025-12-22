@@ -8,6 +8,9 @@ SECTIONS
   /* -------- code & rodata -------- */
   .text : ALIGN(4K) {
     *(.text*)
+  }
+
+  .rodata : ALIGN(4K) {
     *(.rodata*)
   }
 
@@ -20,12 +23,6 @@ SECTIONS
   .bss : ALIGN(4K) {
     *(.bss*)
     *(COMMON)
-  }
-
-  /* -------- heap -------- */
-  .heap : ALIGN(4K) {
-    __heap_start = .;
-    __heap_end = .;
   }
 
   /* -------- discard -------- */
