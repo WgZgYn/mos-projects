@@ -6,7 +6,6 @@
       <sourceFolder url="file://$MODULE_DIR$/mos/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/allocators/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/user_space/green_thread/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/user_space/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/vga/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bitmap/src" isTestSource="false" />
@@ -24,6 +23,7 @@
       <sourceFolder url="file://$MODULE_DIR$/user_space/test_exit/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/user_space/test_rand/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bs_string/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/green_thread/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user_space/target" />

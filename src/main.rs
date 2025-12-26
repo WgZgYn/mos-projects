@@ -10,7 +10,6 @@ mod command;
 mod execute;
 mod path;
 
-/// FIXME: fs is not sync with build, sometime it's need to run twice.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::builder().filter_level(LevelFilter::Info).init();
     let cli = Cli::parse();

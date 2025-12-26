@@ -183,10 +183,17 @@ impl LockedSession {
         f();
         drop(guard);
     }
-    pub fn lock(&self) {
-        self.mutex.lock();
+}
+
+impl Deref for LockedSession {
+    type Target = Mutex<()>;
+    fn deref(&self) -> &Self::Target {
+        &self.mutex
     }
-    pub fn unlock(&self) {
-        self.mutex.lock();
+}
+
+impl DerefMut for LockedSession {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.mutex
     }
 }

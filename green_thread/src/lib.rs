@@ -1,4 +1,6 @@
 #![no_std]
+
+
 extern crate alloc;
 
 use alloc::boxed::Box;
@@ -117,7 +119,7 @@ impl Runtime {
             let new: *const ThreadContext = &self.threads[pos].ctx;
             asm!("call switch", in("rdi") old, in("rsi") new, clobber_abi("C"));
         }
-        self.threads.len() > 0
+        !self.threads.is_empty()
     }
 
     pub fn spawn(&mut self, f: fn()) {
