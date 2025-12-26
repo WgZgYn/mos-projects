@@ -168,11 +168,11 @@ impl IDAllocator {
 }
 
 #[derive(Default)]
-pub struct LockedSession {
+pub struct SpinLockedSession {
     mutex: Mutex<()>,
 }
 
-impl LockedSession {
+impl SpinLockedSession {
     pub const fn new() -> Self {
         Self {
             mutex: Mutex::new(()),
@@ -185,14 +185,14 @@ impl LockedSession {
     }
 }
 
-impl Deref for LockedSession {
+impl Deref for SpinLockedSession {
     type Target = Mutex<()>;
     fn deref(&self) -> &Self::Target {
         &self.mutex
     }
 }
 
-impl DerefMut for LockedSession {
+impl DerefMut for SpinLockedSession {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.mutex
     }

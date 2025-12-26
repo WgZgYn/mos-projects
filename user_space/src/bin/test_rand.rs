@@ -66,7 +66,7 @@ fn test_string() {
     let mut buffer = String::with_capacity(32);
     buffer.push_str("v: ");
     buffer.push_str(v.to_string().as_str());
-    buffer.push_str("\n");
+    buffer.push('\n');
     write(STDOUT, buffer.as_bytes());
 }
 

@@ -20,7 +20,8 @@ fn main() -> u64 {
 pub fn print_array(array: &[u8]) {
     let mut buffer = [0; 128];
     let n = write_array(&mut buffer, array);
-    write(STDOUT, &buffer[..n]);
+    buffer[n] = b'\n';
+    write(STDOUT, &buffer[..=n]);
 }
 
 pub fn write_array(buffer: &mut [u8], array: &[u8]) -> usize {
