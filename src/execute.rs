@@ -31,9 +31,9 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
     cmd.arg("-cpu").arg("qemu64,+rdrand");
     cmd.arg("-m").arg("4G");
 
-    // cmd.arg("-device").arg("virtio-gpu-pci");
-    cmd.arg("-nographic");
-    cmd.arg("-vnc").arg(":0");
+    cmd.arg("-device").arg("virtio-gpu-pci");
+    // cmd.arg("-nographic");
+    // cmd.arg("-vnc").arg(":0");
 
     if run.map_ramfs_memory {
         cmd.arg("-device")
