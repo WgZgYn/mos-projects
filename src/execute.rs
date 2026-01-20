@@ -3,6 +3,8 @@ use crate::path::{
     BOOT_IMAGES_DIR, KERNEL_NAME, KERNEL_PATH, RAMFS_OUT_PATH, USER_SPACE_BINS_DIR,
     USER_SPACE_PATH, elf_target_path, rs_file_name,
 };
+use bootloader::BootConfig;
+use ovmf_prebuilt::{Arch, FileType, Prebuilt, Source};
 use ramfs_builder::RamfsBuilder;
 use std::error::Error;
 use std::path::Path;
@@ -18,14 +20,31 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
     println!("Running on mode: {:?}:{:?}", profile, boot_mode);
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
     match boot_mode.unwrap_or(BootMode::Uefi) {
-        BootMode::Uefi => cmd
-            .arg("-bios")
-            .arg(ovmf_prebuilt::ovmf_pure_efi())
-            .arg("-drive")
-            .arg(format!("format=raw,file={}/uefi.img", BOOT_IMAGES_DIR,)),
+        BootMode::Uefi => {
+            // this will download latest built from GitHub
+            let prebuilt =
+                Prebuilt::fetch(Source::LATEST, "target/ovmf").expect("failed to fetch prebuilt");
+
+            let code = prebuilt.get_file(Arch::X64, FileType::Code);
+            let vars = prebuilt.get_file(Arch::X64, FileType::Vars);
+
+            cmd.arg("-drive")
+                .arg(format!("format=raw,file={}/uefi.img", BOOT_IMAGES_DIR));
+
+            cmd.arg("-drive").arg(format!(
+                "if=pflash,format=raw,unit=0,file={},readonly=on",
+                code.display()
+            ));
+
+            // copy vars and enable rw instead of snapshot if you want to store data (e.g. enroll secure boot keys)
+            cmd.arg("-drive").arg(format!(
+                "if=pflash,format=raw,unit=1,file={},snapshot=on",
+                vars.display()
+            ))
+        }
         BootMode::Bios => cmd
             .arg("-drive")
-            .arg(format!("format=raw,file={}/bios.img", BOOT_IMAGES_DIR,)),
+            .arg(format!("format=raw,file={}/bios.img", BOOT_IMAGES_DIR)),
     };
     cmd.arg("-serial").arg("mon:stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
@@ -78,10 +97,18 @@ pub fn build_kernel(profile: Profile, boot_mode: Option<BootMode>) -> Result<(),
     };
     cmd.status()?;
 
+    let mut boot_config = BootConfig::default();
+    boot_config.log_level = bootloader_boot_config::LevelFilter::Off;
+    boot_config.frame_buffer_logging = false;
+    boot_config.serial_logging = true;
+    // boot_config.frame_buffer.minimum_framebuffer_width = Some(1000);
+    // boot_config.frame_buffer.minimum_framebuffer_height = Some(800);
+
     match boot_mode.unwrap_or(BootMode::Uefi) {
         BootMode::Uefi => {
             bootloader::UefiBoot::new(elf_target_path(profile, KERNEL_NAME).as_path())
                 .set_ramdisk(Path::new(RAMFS_OUT_PATH))
+                .set_boot_config(&boot_config)
                 .create_disk_image(Path::new(BOOT_IMAGES_DIR).join("uefi.img").as_path())?;
         }
         BootMode::Bios => {
