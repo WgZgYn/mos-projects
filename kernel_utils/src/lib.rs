@@ -197,3 +197,40 @@ impl DerefMut for SpinLockedSession {
         &mut self.mutex
     }
 }
+
+
+pub struct Array<T, const N: usize> {
+    data: [Option<T>; N],
+    len: usize,
+}
+impl<T, const N: usize> Default for Array<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T, const N: usize> Array<T, N> {
+    pub const fn new() -> Self {
+        Self {
+            data: [const { None }; N],
+            len: 0,
+        }
+    }
+    pub fn push(&mut self, value: T) {
+        if self.len < N {
+            self.data[self.len] = Some(value);
+            self.len += 1;
+        } else {
+            panic!("out of bounds");
+        }
+    }
+    pub fn pop(&mut self) -> Option<T> {
+        if self.len > 0 {
+            let ret = self.data[self.len - 1].take();
+            self.len -= 1;
+            ret
+        } else {
+            None
+        }
+    }
+}
