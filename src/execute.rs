@@ -101,8 +101,8 @@ pub fn build_kernel(profile: Profile, boot_mode: Option<BootMode>) -> Result<(),
     boot_config.log_level = bootloader_boot_config::LevelFilter::Off;
     boot_config.frame_buffer_logging = false;
     boot_config.serial_logging = true;
-    // boot_config.frame_buffer.minimum_framebuffer_width = Some(1000);
-    // boot_config.frame_buffer.minimum_framebuffer_height = Some(800);
+    boot_config.frame_buffer.minimum_framebuffer_width = Some(1000);
+    boot_config.frame_buffer.minimum_framebuffer_height = Some(800);
 
     match boot_mode.unwrap_or(BootMode::Uefi) {
         BootMode::Uefi => {

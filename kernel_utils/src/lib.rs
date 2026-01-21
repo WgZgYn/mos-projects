@@ -198,7 +198,6 @@ impl DerefMut for SpinLockedSession {
     }
 }
 
-
 pub struct Array<T, const N: usize> {
     data: [Option<T>; N],
     len: usize,
@@ -226,11 +225,16 @@ impl<T, const N: usize> Array<T, N> {
     }
     pub fn pop(&mut self) -> Option<T> {
         if self.len > 0 {
-            let ret = self.data[self.len - 1].take();
             self.len -= 1;
-            ret
+            self.data[self.len].take()
         } else {
             None
         }
+    }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
     }
 }
