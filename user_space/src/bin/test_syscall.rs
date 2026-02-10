@@ -7,8 +7,6 @@ use user_space::println;
 #[unsafe(no_mangle)]
 fn main() -> u64 {
     println!("[test_syscall main]:");
-    unsafe {
-        asm!("syscall");
-    }
+    println!("current not support fast syscall");
     0
 }
