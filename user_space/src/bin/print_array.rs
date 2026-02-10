@@ -5,7 +5,7 @@ use user_space::{println, rand, write, STDOUT};
 
 #[unsafe(no_mangle)]
 fn main() -> u64 {
-    println!("----- test_gp ----- start");
+    println!("----- print array ----- start");
     let mut array: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
     for v in array.iter_mut() {
         *v = rand() as u8;
@@ -13,7 +13,7 @@ fn main() -> u64 {
     print_array(&array);
     array.sort_unstable();
     print_array(&array);
-    println!("----- test_gp ----- end");
+    println!("----- print array ----- end");
     0
 }
 
