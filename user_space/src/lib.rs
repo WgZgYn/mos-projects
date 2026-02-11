@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(linkage)]
 
-use crate::syscall::{sys_exec, sys_exit, sys_rand, sys_write, sys_yield};
+use crate::syscall::{sys_exec, sys_exit, sys_rand, sys_sleep, sys_write, sys_yield};
 
 pub mod console;
 mod syscall;
@@ -63,8 +63,11 @@ pub fn rand() -> u64 {
     sys_rand()
 }
 
-pub fn yield_() -> u64 {
-    sys_yield()
+pub fn yield_() {
+    sys_yield();
+}
+pub fn sleep(ms: u64) {
+    sys_sleep(ms);
 }
 pub fn exec(path: &str, priority: u8) -> u64 {
     sys_exec(path, priority)
