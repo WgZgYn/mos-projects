@@ -53,6 +53,9 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
     cmd.arg("-device").arg("virtio-gpu-pci");
     // cmd.arg("-nographic");
     // cmd.arg("-vnc").arg(":0");
+    cmd.arg("-audiodev").arg("dsound,id=snd0");
+    cmd.arg("-machine").arg("pcspk-audiodev=snd0");
+
 
     if run.map_ramfs_memory {
         cmd.arg("-device")
