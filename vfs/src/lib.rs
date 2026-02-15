@@ -1,5 +1,6 @@
 #![no_std]
 
+mod file;
 mod path;
 mod traits;
 
@@ -10,9 +11,9 @@ use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::sync::Arc;
-use core::ops::Deref;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel_utils::{RwLock, bitflags};
+
+pub use crate::file::File;
 
 // below is dynamic dispatch compatible
 #[derive(Debug)]
@@ -83,11 +84,8 @@ pub trait SuperBlock {
     fn root(&self) -> Arc<dyn Inode>;
 }
 
-pub trait Inode: Send + Sync + FileOps + DirInode {
+pub trait Inode: FileOps + InodeOps {
     fn meta_data(&self) -> &[u8];
-    fn parent(&self) -> Option<Arc<dyn Inode>>;
-    fn lookup(&self, name: &str) -> VfsResult<Arc<dyn Inode>>;
-    fn create(&self, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
     fn file_size(&self) -> u64;
     fn file_type(&self) -> FileType;
 }
@@ -97,68 +95,11 @@ pub trait FileOps: Send + Sync {
     fn write_at(&self, offset: usize, buf: &[u8]) -> VfsResult<usize>;
 }
 
-pub trait DirInode {
+pub trait InodeOps: Send + Sync {
+    fn parent(&self) -> Option<Arc<dyn Inode>>;
+    fn lookup(&self, name: &str) -> VfsResult<Arc<dyn Inode>>;
+    fn create(&self, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>>;
-}
-
-pub struct File {
-    inode: Arc<dyn FileOps>,
-    offset: AtomicUsize,
-}
-
-impl File {
-    pub fn new(inode: Arc<dyn FileOps>) -> Self {
-        Self {
-            inode,
-            offset: AtomicUsize::new(0),
-        }
-    }
-    pub fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
-        let off = self.offset.load(Ordering::Relaxed);
-        let n = self.inode.read_at(off, buf)?;
-        self.offset.fetch_add(n, Ordering::Relaxed);
-        Ok(n)
-    }
-    pub fn write(&self, buf: &[u8]) -> VfsResult<usize> {
-        let off = self.offset.load(Ordering::Relaxed);
-        let n = self.inode.write_at(off, buf)?;
-        self.offset.fetch_add(n, Ordering::Relaxed);
-        Ok(n)
-    }
-    pub fn seek(&self, offset: usize) {
-        self.offset.store(offset, Ordering::SeqCst);
-    }
-    pub fn dup(self) -> DupFile {
-        DupFile(Arc::new(self))
-    }
-}
-
-#[derive(Clone)]
-pub struct DupFile(Arc<File>);
-impl Deref for DupFile {
-    type Target = File;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-pub struct ReadOnlyFile(File);
-impl ReadOnlyFile {
-    fn new(file: File) -> Self {
-        Self(file)
-    }
-    pub fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
-        let off = self.0.offset.load(Ordering::Relaxed);
-        let n = self.0.inode.read_at(off, buf)?;
-        self.0.offset.fetch_add(n, Ordering::Relaxed);
-        Ok(n)
-    }
-    pub fn write(&self, _buf: &[u8]) -> VfsResult<usize> {
-        Err(VfsError::PermissionDenied)
-    }
-    pub fn seek(&self, offset: usize) {
-        self.0.offset.store(offset, Ordering::SeqCst);
-    }
 }
 
 pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>> {
@@ -177,19 +118,31 @@ pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>
     Ok(cur)
 }
 
-pub fn vfs_open(root: Arc<dyn Inode>, path: &str, open_flags: OpenFlags) -> VfsResult<File> {
+pub fn vfs_open(root: Arc<dyn Inode>, path: &str) -> VfsResult<Arc<dyn Inode>> {
     let node = lookup_path(path, root)?;
     if node.file_type() != FileType::Directory && node.file_type() != FileType::Regular {
         return Err(VfsError::NotFile);
     }
-    let mut offset = 0;
-    if open_flags.contains(OpenFlags::APPEND) {
-        offset = node.file_size() as usize;
+    Ok(node)
+}
+
+pub struct DirIter {
+    node: Arc<dyn InodeOps>,
+    index: usize,
+}
+
+impl DirIter {
+    pub fn new(node: Arc<dyn InodeOps>) -> Self {
+        Self { node, index: 0 }
     }
-    Ok(File {
-        inode: node,
-        offset: AtomicUsize::new(offset),
-    })
+}
+
+impl Iterator for DirIter {
+    type Item = DirEntry;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.index += 1;
+        self.node.readdir(self.index - 1).ok()?
+    }
 }
 
 pub struct Dentry {
