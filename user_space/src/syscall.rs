@@ -3,7 +3,7 @@ use core::arch::asm;
 fn syscall(no: u64, args: [u64; 3]) -> u64 {
     let ret: u64;
     unsafe {
-        asm!("int 0x80",
+        asm!("syscall",
         in("rax") no,
         in("rdi") args[0],
         in("rsi") args[1],
@@ -32,4 +32,7 @@ pub fn sys_yield() -> u64 {
 }
 pub fn sys_exec(path: &str, priority: u8) -> u64 {
     syscall(59, [path.as_ptr() as _, path.len() as _, priority as _])
+}
+pub fn sys_sleep(ms: u64) -> u64 {
+    syscall(62, [ms, 0, 0])
 }
