@@ -5,7 +5,7 @@ use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
 use vfs::{
-    DirEntry, DirInode, File, FileOps, Inode, MountFlags, SuperBlock, VFS, VfsError, VfsResult,
+    DirEntry, File, FileOps, Inode, InodeOps, MountFlags, SuperBlock, VFS, VfsError, VfsResult,
 };
 
 impl VFS for RamFsManager<'static> {
@@ -81,7 +81,53 @@ impl FileOps for FsNode {
     }
 }
 
-impl DirInode for FsNode {
+impl InodeOps for FsNode {
+    fn parent(&self) -> Option<Arc<dyn Inode>> {
+        Some(Arc::new(FsNode {
+            fs: self.fs.clone(),
+            idx: self.fs.lock()[self.idx].parent,
+        }))
+    }
+
+    fn lookup(&self, name: &str) -> Result<Arc<dyn Inode>, VfsError> {
+        self.fs
+            .lock()
+            .dir_items_from_idx(self.idx)
+            .map_err(|_| VfsError::NotDir)?
+            .iter()
+            .find(|i| i.has_same_name(name))
+            .map(|i| {
+                Arc::new(FsNode {
+                    fs: self.fs.clone(),
+                    idx: i.index(),
+                }) as Arc<dyn Inode>
+            })
+            .ok_or(VfsError::NotFound)
+    }
+
+    fn create(&self, name: &str, file_type: vfs::FileType) -> VfsResult<Arc<dyn Inode>> {
+        let parent_inode_idx = self.idx;
+        let file_type = if file_type == vfs::FileType::Directory {
+            FileType::Directory
+        } else {
+            FileType::File
+        };
+
+        let mut fs = self.fs.lock();
+
+        let inode_idx = fs
+            .new_inode(name, file_type, parent_inode_idx)
+            .map_err(|_| VfsError::NoSpace)?;
+
+        fs.add_dir_entry(parent_inode_idx, inode_idx)
+            .map_err(|_| VfsError::NoSpace)?;
+
+        Ok(Arc::new(FsNode {
+            fs: self.fs.clone(),
+            idx: inode_idx,
+        }))
+    }
+
     fn readdir(&self, offset: usize) -> Result<Option<DirEntry>, VfsError> {
         let fs = self.fs.lock();
         let node = &fs[self.idx];
@@ -93,7 +139,7 @@ impl DirInode for FsNode {
             fs: self.fs.clone(),
             idx: self.idx,
         });
-        let file = File::new(node.clone());
+        let file = File::from_inode(node.clone());
         file.seek(offset * structs_size::RAMFS_DIR_ITEM_SIZE);
         let mut item = [0; structs_size::RAMFS_DIR_ITEM_SIZE];
         let n = file.read(&mut item)?;
@@ -122,97 +168,7 @@ impl Inode for FsNode {
     fn meta_data(&self) -> &[u8] {
         todo!()
     }
-    
-    fn parent(&self) -> Option<Arc<dyn Inode>> {
-        Some(Arc::new(FsNode {
-            fs: self.fs.clone(),
-            idx: self.fs.lock()[self.idx].parent,
-        }))
-    }
 
-    fn lookup(&self, name: &str) -> Result<Arc<dyn Inode>, VfsError> {
-        self.fs
-            .lock()
-            .dir_items_from_idx(self.idx)
-            .map_err(|_| VfsError::NotDir)?
-            .iter()
-            .find(|i| i.has_same_name(name))
-            .map(|i| {
-                Arc::new(FsNode {
-                    fs: self.fs.clone(),
-                    idx: i.index(),
-                }) as Arc<dyn Inode>
-            })
-            .ok_or(VfsError::NotFound)
-    }
-    // fn create(&self, path: &str, file_type: Self::FileType) -> Result<Self::File, Self::Error> {
-    //     trace!("FS CREATE {}", path);
-    //
-    //     // resolve the path
-    //     let (parent_inode_idx, name) = self.lock().resolve_path(path)?;
-    //
-    //     // create a transaction
-    //     let mut trans = FsTransaction::new(self);
-    //
-    //     let mut fs = self.lock();
-    //
-    //     // allocate inode
-    //     let inode_idx = fs.new_inode(name, file_type, parent_inode_idx)?;
-    //
-    //     // add it to the parent dir
-    //     fs.add_dir_entry(parent_inode_idx, inode_idx)?;
-    //
-    //     // trans is success
-    //     trans.success();
-    //     Ok(File::from_fd(inode_idx))
-    // }
-    //
-    // fn remove(&self, path: &str) -> Result<(), Self::Error> {
-    //     let (parent_inode_idx, name) = self.lock().resolve_path(path)?;
-    //     let inode = &mut self.lock()[parent_inode_idx];
-    //     let len = inode.size as usize / size_of::<DirItem>();
-    //     inode.page_1[0]
-    //         .to_option()
-    //         .map(|f| {
-    //             let i = self.lock()[f]
-    //                 .as_dir_items(len)
-    //                 .iter()
-    //                 .enumerate()
-    //                 .find(|(_, item)| has_same_name(&item.name, name))
-    //                 .map(|(i, _)| i);
-    //             if let Some(i) = i {
-    //                 self.lock()[f].as_dir_items_mut(len).swap(i, len);
-    //                 inode.size -= size_of::<DirItem>() as u64;
-    //             }
-    //         })
-    //         .ok_or(Error::NoSuchFile)
-    // }
-    //
-    // fn close(&self, _file: Self::File) -> Result<(), Self::Error> {
-    //     Ok(())
-    // }
-    fn create(&self, name: &str, file_type: vfs::FileType) -> VfsResult<Arc<dyn Inode>> {
-        let parent_inode_idx = self.idx;
-        let file_type = if file_type == vfs::FileType::Directory {
-            FileType::Directory
-        } else {
-            FileType::File
-        };
-
-        let mut fs = self.fs.lock();
-
-        let inode_idx = fs
-            .new_inode(name, file_type, parent_inode_idx)
-            .map_err(|_| VfsError::NoSpace)?;
-
-        fs.add_dir_entry(parent_inode_idx, inode_idx)
-            .map_err(|_| VfsError::NoSpace)?;
-
-        Ok(Arc::new(FsNode {
-            fs: self.fs.clone(),
-            idx: inode_idx,
-        }))
-    }
     fn file_size(&self) -> u64 {
         self.fs.lock()[self.idx].size
     }
