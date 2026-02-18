@@ -93,7 +93,7 @@ impl Pitch {
         if let PitchClass::R = self.class {
             return 0;
         }
-        PITCH_FREQ_TABLE[self.level as usize][self.class as usize]
+        PITCH_FREQ_TABLE[self.level as usize][self.class.as_u8() as usize - 1]
     }
     pub const fn major_scale(&self) -> [Self; 8] {
         pub const MAJOR_SCALE_INTERVALS: [u8; 7] = [2, 2, 1, 2, 2, 2, 1];
@@ -142,6 +142,7 @@ impl Note {
 }
 
 pub trait Speaker {
+    /// be careful the freq maybe zero
     fn speak_on(&self, freq: u32, dura: u32);
 }
 
