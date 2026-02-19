@@ -8,12 +8,12 @@ resolver = "3"
 [dependencies]
 # used for UEFI booting in QEMU
 ovmf-prebuilt = "0.2.7"
-clap = { version = "4.5.53", features = ["derive"] }
-env_logger = "0.11.8"
+clap = { version = "4.5.59", features = ["derive"] }
+env_logger = "0.11.9"
+log = "0.4.29"
+bootloader = "0.11.15"
+bootloader-boot-config = "0.11.15"
 ramfs_builder = { path = "ramfs_builder" }
-bootloader = "0.11.13"
-log = "0.4.28"
-bootloader-boot-config = "0.11.13"
 
 [workspace]
 members = ["allocators", "mos", "vga", "green_thread", "bitmap", "optional", "psf", "buddy_allocator", "ppm", "ramfs_builder", "ramfs", "kernel_utils", "vfs", "user_space", "bs_string", "collections", "note"]
