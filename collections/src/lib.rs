@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod tree;
+mod array;
 
 #[macro_export]
 macro_rules! container_of {
