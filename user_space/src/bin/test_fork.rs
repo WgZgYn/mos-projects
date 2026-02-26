@@ -3,36 +3,8 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use linked_list_allocator::LockedHeap;
-use user_space::{brk, fork, println};
+use user_space::{fork, init_heap, println};
 
-#[global_allocator]
-static HEAP: LockedHeap = LockedHeap::empty();
-
-
-fn init_heap() {
-    let old_brk = brk(0);
-    unsafe {
-        if brk(old_brk + 4096 * 32) == u64::MAX { // 128 KB
-            panic!("failed to set heap brk");
-        }
-        let new_brk = brk(0);
-
-        let size = new_brk as usize - old_brk as usize;
-        HEAP.lock().init(old_brk as _, size);
-
-        let guard = HEAP.lock();
-        println!(
-            "heap_info, size: {}, top: {:?}, bottom: {:?}, free: {}, used: {}",
-            guard.size(),
-            guard.top(),
-            guard.bottom(),
-            guard.free(),
-            guard.used()
-        );
-        println!("new_brk: {:x?}, old_brk: {:x?}", new_brk, old_brk);
-    }
-}
 #[unsafe(no_mangle)]
 fn main() -> u64 {
     println!("===== cow_stress_test start =====");

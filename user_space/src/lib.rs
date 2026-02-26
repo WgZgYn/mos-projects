@@ -2,12 +2,39 @@
 #![no_main]
 #![feature(linkage)]
 
+use linked_list_allocator::LockedHeap;
 use crate::syscall::{
     sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_sleep, sys_write, sys_yield,
 };
 
 pub mod console;
 mod syscall;
+
+#[global_allocator]
+static HEAP: LockedHeap = LockedHeap::empty();
+pub fn init_heap() {
+    let old_brk = brk(0);
+    unsafe {
+        if brk(old_brk + 4096 * 32) == u64::MAX { // 128 KB
+            panic!("failed to set heap brk");
+        }
+        let new_brk = brk(0);
+
+        let size = new_brk as usize - old_brk as usize;
+        HEAP.lock().init(old_brk as _, size);
+
+        // let guard = HEAP.lock();
+        // println!(
+        //     "heap_info, size: {}, top: {:?}, bottom: {:?}, free: {}, used: {}",
+        //     guard.size(),
+        //     guard.top(),
+        //     guard.bottom(),
+        //     guard.free(),
+        //     guard.used()
+        // );
+        // println!("new_brk: {:x?}, old_brk: {:x?}", new_brk, old_brk);
+    }
+}
 
 #[linkage = "weak"]
 #[unsafe(no_mangle)]
@@ -80,3 +107,5 @@ pub fn fork() -> u64 {
 pub fn brk(addr: u64) -> u64 {
     sys_brk(addr)
 }
+
+
