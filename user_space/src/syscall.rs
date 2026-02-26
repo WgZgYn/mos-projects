@@ -36,3 +36,9 @@ pub fn sys_exec(path: &str, priority: u8) -> u64 {
 pub fn sys_sleep(ms: u64) -> u64 {
     syscall(62, [ms, 0, 0])
 }
+pub fn sys_fork() -> u64 {
+    syscall(57, [0, 0, 0])
+}
+pub fn sys_brk(addr: u64) -> u64 {
+    syscall(12, [addr, 0, 0])
+}

@@ -11,21 +11,23 @@ use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::sync::Arc;
-use kernel_utils::{RwLock, bitflags};
+use kernel_utils::{RwLock, bitflags, string_enum};
 
 pub use crate::file::File;
 
 // below is dynamic dispatch compatible
-#[derive(Debug)]
-pub enum VfsError {
-    NotFound,
-    NotDir,
-    NotFile,
-    NoSpace,
-    PermissionDenied,
-    IoError,
-    AlreadyExists,
-}
+string_enum!(
+    #[derive(Debug)]
+    pub enum VfsError {
+        NotFound,
+        NotDir,
+        NotFile,
+        NoSpace,
+        PermissionDenied,
+        IoError,
+        AlreadyExists,
+    }
+);
 
 pub type VfsResult<T> = Result<T, VfsError>;
 

@@ -2,7 +2,9 @@
 #![no_main]
 #![feature(linkage)]
 
-use crate::syscall::{sys_exec, sys_exit, sys_rand, sys_sleep, sys_write, sys_yield};
+use crate::syscall::{
+    sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_sleep, sys_write, sys_yield,
+};
 
 pub mod console;
 mod syscall;
@@ -71,4 +73,10 @@ pub fn sleep(ms: u64) {
 }
 pub fn exec(path: &str, priority: u8) -> u64 {
     sys_exec(path, priority)
+}
+pub fn fork() -> u64 {
+    sys_fork()
+}
+pub fn brk(addr: u64) -> u64 {
+    sys_brk(addr)
 }
