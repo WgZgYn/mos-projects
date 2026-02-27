@@ -18,7 +18,9 @@ fn syscall(no: u64, args: [u64; 3]) -> u64 {
 pub fn sys_write(fd: u64, buffer: &[u8]) -> u64 {
     syscall(1, [fd, buffer.as_ptr() as _, buffer.len() as u64])
 }
-
+pub fn sys_read(fd: u64, buffer: &mut [u8]) -> u64 {
+    syscall(0, [fd, buffer.as_mut_ptr() as _, buffer.len() as u64])
+}
 pub fn sys_exit(code: u64) -> u64 {
     syscall(60, [code, 0, 0])
 }

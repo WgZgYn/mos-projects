@@ -2,20 +2,23 @@
 #![no_main]
 #![feature(linkage)]
 
-use linked_list_allocator::LockedHeap;
 use crate::syscall::{
-    sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_sleep, sys_write, sys_yield,
+    sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_read, sys_sleep, sys_write, sys_yield,
 };
+use linked_list_allocator::LockedHeap;
 
 pub mod console;
 mod syscall;
 
 #[global_allocator]
 static HEAP: LockedHeap = LockedHeap::empty();
+
+
 pub fn init_heap() {
     let old_brk = brk(0);
     unsafe {
-        if brk(old_brk + 4096 * 32) == u64::MAX { // 128 KB
+        if brk(old_brk + 4096 * 32) == u64::MAX {
+            // 128 KB
             panic!("failed to set heap brk");
         }
         let new_brk = brk(0);
@@ -64,9 +67,19 @@ fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
 }
 
 pub const STDOUT: u64 = 1;
+pub const STDIN: u64 = 0;
 
 pub fn write(fd: u64, buffer: &[u8]) -> u64 {
     sys_write(fd, buffer)
+}
+pub fn read(fd: u64, buffer: &mut [u8]) -> u64 {
+    sys_read(fd, buffer)
+}
+
+pub fn get_char() -> u8 {
+    let mut c = b'\0';
+    read(STDIN, core::slice::from_mut(&mut c));
+    c
 }
 
 pub fn write_stdout_number(mut v: usize) -> u64 {
@@ -107,5 +120,3 @@ pub fn fork() -> u64 {
 pub fn brk(addr: u64) -> u64 {
     sys_brk(addr)
 }
-
-
