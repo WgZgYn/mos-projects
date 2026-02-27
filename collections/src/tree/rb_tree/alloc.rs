@@ -1,9 +1,9 @@
 extern crate alloc;
 
-use crate::tree::rb_tree::RBNodeColor;
-use crate::tree::rb_tree::RedBlackNode;
 use crate::tree::BinaryNode;
 use crate::tree::ParentRefNode;
+use crate::tree::rb_tree::RBNodeColor;
+use crate::tree::rb_tree::RedBlackNode;
 use crate::{impl_binary_node, impl_parent_node, impl_rb_node};
 use core::cmp::Ordering;
 use core::ptr::null_mut;

@@ -1,4 +1,4 @@
-use super::{write, STDOUT};
+use super::{STDOUT, write};
 use core::fmt::{self, Write};
 
 struct Stdout;

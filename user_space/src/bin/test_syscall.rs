@@ -2,7 +2,7 @@
 #![no_main]
 
 use core::arch::asm;
-use user_space::{println, write, STDOUT};
+use user_space::{STDOUT, println, write};
 
 #[unsafe(no_mangle)]
 fn main() -> u64 {

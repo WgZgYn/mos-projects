@@ -1,15 +1,11 @@
 #![no_std]
 
-pub mod tree;
 mod array;
+pub mod tree;
 
 #[macro_export]
 macro_rules! container_of {
-    ($ptr:expr, $ty:ty, $member:tt) => {{
-        ($ptr as *const u8)
-            .sub(core::mem::offset_of!($ty, $member))
-            as *const $ty
-    }};
+    ($ptr:expr, $ty:ty, $member:tt) => {{ ($ptr as *const u8).sub(core::mem::offset_of!($ty, $member)) as *const $ty }};
 }
 
 /// # Safety

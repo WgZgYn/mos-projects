@@ -3,7 +3,7 @@ mod ramfs;
 use crate::constant::{RAMFS_FRAME_BITS, RAMFS_INODE_BITS, RAMFS_INODE_COUNT};
 use crate::index::InodeIndex;
 use crate::inode::IndexNode;
-use kernel_utils::{string_enum, BitMap};
+use kernel_utils::{BitMap, string_enum};
 
 // WARNING: The repr(C) is important, if not the compiler will reorder the fields
 // It will cause ambiguous result

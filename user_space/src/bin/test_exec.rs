@@ -6,5 +6,6 @@ use user_space::{exec, println};
 #[unsafe(no_mangle)]
 fn main() -> u64 {
     println!("--- test_exec ---");
-    exec("/test_write", 3)
+    exec("/test_write", 3);
+    unreachable!("bug: return from exec")
 }

@@ -1,5 +1,5 @@
 use crate::constant::inode;
-use crate::fs::{name_of, Error, FileType};
+use crate::fs::{Error, FileType, name_of};
 use crate::index::{FramePtr, InodeIndex};
 use crate::utils::set_filename;
 

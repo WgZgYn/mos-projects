@@ -1,4 +1,4 @@
-use crate::constant::{inode, RAMFS_ROOT_INODE_INDEX_USIZE};
+use crate::constant::{RAMFS_ROOT_INODE_INDEX_USIZE, inode};
 use core::ops::Deref;
 
 // this mod prevent construct with field

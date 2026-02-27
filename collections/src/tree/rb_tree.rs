@@ -1,7 +1,5 @@
-use crate::tree::search_tree::{
-    insert_search_tree_with_parent, insert_search_tree_with_parent_by,
-};
-use crate::tree::{replace_node_with_parent, rotate, BinaryNode, BinaryParentNode, ParentRefNode};
+use crate::tree::search_tree::{insert_search_tree_with_parent, insert_search_tree_with_parent_by};
+use crate::tree::{BinaryNode, BinaryParentNode, ParentRefNode, replace_node_with_parent, rotate};
 use core::cmp::Ordering;
 use core::ptr::null_mut;
 

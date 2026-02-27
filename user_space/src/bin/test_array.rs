@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_space::{println, rand, write, STDOUT};
+use user_space::{STDOUT, println, rand, write};
 
 #[unsafe(no_mangle)]
 fn main() -> u64 {

@@ -1,4 +1,6 @@
-use crate::tree::{BinaryNode, BinaryOrd, BinaryParentNode, replace_node_with_parent, replace_node};
+use crate::tree::{
+    BinaryNode, BinaryOrd, BinaryParentNode, replace_node, replace_node_with_parent,
+};
 use core::cmp::Ordering;
 
 /// return Some when the old node has the same key with new node, return old node
@@ -26,7 +28,7 @@ where
             *root_ptr_ref = node;
             return None;
         };
-        
+
         let mut current_ref = root_ref;
         loop {
             match cmp(node_ref, current_ref) {
@@ -52,7 +54,6 @@ where
                 }
             }
         }
-        
     }
 }
 

@@ -5,7 +5,6 @@ extern crate alloc;
 use alloc::vec;
 use user_space::{init_heap, println};
 
-
 #[unsafe(no_mangle)]
 fn main() -> u64 {
     println!("--- test_heap --- start");
