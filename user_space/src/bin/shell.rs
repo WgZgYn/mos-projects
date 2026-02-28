@@ -6,7 +6,7 @@ use alloc::string::String;
 use user_space::{get_char, init_heap, print, println};
 
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     init_heap();
     println!("MOS Shell");
     println!(">> ");
