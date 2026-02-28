@@ -8,7 +8,7 @@ const B: f64 = 456.789;
 const C: f64 = A + B;
 
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("--- test_float ---");
     for _ in 0..10 {
         let r = rand();

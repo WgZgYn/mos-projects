@@ -4,7 +4,7 @@
 use core::arch::asm;
 use user_space::println;
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("----- test_kill ----- start");
     unsafe {
         asm!("hlt");

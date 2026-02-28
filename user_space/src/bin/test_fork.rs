@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use user_space::{fork, init_heap, println};
 
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("===== cow_stress_test start =====");
 
     init_heap();

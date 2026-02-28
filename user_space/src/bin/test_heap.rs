@@ -6,7 +6,7 @@ use alloc::vec;
 use user_space::{init_heap, println};
 
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("--- test_heap --- start");
     init_heap();
     let mut array = vec![1, 2, 3];

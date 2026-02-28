@@ -4,7 +4,7 @@
 use user_space::{STDOUT, println, rand, write};
 
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("----- print array ----- start");
     let mut array: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
     for v in array.iter_mut() {

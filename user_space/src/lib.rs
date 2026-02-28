@@ -3,7 +3,8 @@
 #![feature(linkage)]
 
 use crate::syscall::{
-    sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_read, sys_sleep, sys_write, sys_yield,
+    sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_read, sys_sleep, sys_wait, sys_write,
+    sys_yield,
 };
 use linked_list_allocator::LockedHeap;
 
@@ -12,7 +13,6 @@ mod syscall;
 
 #[global_allocator]
 static HEAP: LockedHeap = LockedHeap::empty();
-
 
 pub fn init_heap() {
     let old_brk = brk(0);
@@ -41,7 +41,7 @@ pub fn init_heap() {
 
 #[linkage = "weak"]
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     panic!("no main")
 }
 
@@ -97,8 +97,8 @@ pub fn write_stdout_number(mut v: usize) -> u64 {
     write(STDOUT, &buffer[..i])
 }
 
-pub fn exit(code: u64) -> u64 {
-    sys_exit(code)
+pub fn exit(code: i32) -> u64 {
+    sys_exit(code as _)
 }
 
 pub fn rand() -> u64 {
@@ -119,4 +119,7 @@ pub fn fork() -> u64 {
 }
 pub fn brk(addr: u64) -> u64 {
     sys_brk(addr)
+}
+pub fn waitpid(pid: u64) -> i32 {
+    sys_wait(pid) as _
 }

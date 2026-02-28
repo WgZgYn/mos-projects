@@ -3,7 +3,7 @@
 
 use user_space::println;
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("----- test_exit -----");
     0
 }

@@ -44,3 +44,6 @@ pub fn sys_fork() -> u64 {
 pub fn sys_brk(addr: u64) -> u64 {
     syscall(12, [addr, 0, 0])
 }
+pub fn sys_wait(pid: u64) -> u64 {
+    syscall(61, [pid, 0, 0]) as _
+}

@@ -9,7 +9,7 @@ fn test_sleep() {
     sleep(500);
 }
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("----- test_sleep ----- start");
     test_sleep();
     println!("----- test_sleep ----- end");

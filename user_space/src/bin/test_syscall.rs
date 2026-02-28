@@ -5,7 +5,7 @@ use core::arch::asm;
 use user_space::{STDOUT, println, write};
 
 #[unsafe(no_mangle)]
-fn main() -> u64 {
+fn main() -> i32 {
     println!("[test_syscall main]:");
     let mut ret: u64;
     unsafe {
