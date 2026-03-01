@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_space::{exec, fork, println};
+use user_space::{exec, fork, init_heap, println, waitpid};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
@@ -11,7 +11,13 @@ fn main() -> i32 {
         exec("shell", 2);
         unreachable!()
     } else {
-        println!("[init]");
+        println!("[init] waitpid {}", pid);
+        let ret = waitpid(pid);
+        if ret == 0 {
+            println!("child Pid({}) exited successfully", pid);
+        } else {
+            println!("child Pid({}) exited with error {}", pid, ret);
+        }
     }
     0
 }

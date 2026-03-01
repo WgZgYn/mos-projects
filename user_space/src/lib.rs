@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(linkage)]
 
+use core::arch::global_asm;
 use crate::syscall::{
     sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_read, sys_sleep, sys_wait, sys_write,
     sys_yield,
@@ -45,10 +46,25 @@ fn main() -> i32 {
     panic!("no main")
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn _start() {
-    exit(main());
-}
+// #[unsafe(no_mangle)]
+// pub extern "C" fn _start() {
+//     exit(main());
+// }
+
+global_asm!(
+    "
+.global _start
+_start:
+    xor rbp, rbp
+    and rsp, -16
+    call {main}
+    mov rdi, rax
+    mov rax, {exit_syscall_no}
+    syscall
+    ",
+    main = sym main,
+    exit_syscall_no = const 60
+);
 
 #[panic_handler]
 fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
