@@ -32,6 +32,14 @@ fn main() -> i32 {
                             print!(">> ");
                         }
                     }
+                    "ls" => {
+                        let pid = fork();
+                        if pid == 0 {
+                            exit(exec("/ls", 2) as _);
+                        } else {
+                            waitpid(pid);
+                        }
+                    }
                     "exit" => {
                         println!("Goodbye!");
                         exit(0);
