@@ -2,12 +2,13 @@
 #![no_main]
 #![feature(linkage)]
 
-use core::arch::global_asm;
 use crate::syscall::{
-    sys_brk, sys_exec, sys_exit, sys_fork, sys_rand, sys_read, sys_sleep, sys_wait, sys_write,
-    sys_yield,
+    sys_brk, sys_close, sys_exec, sys_exit, sys_fork, sys_getdents, sys_open, sys_rand, sys_read,
+    sys_sleep, sys_wait, sys_write, sys_yield,
 };
+use core::arch::global_asm;
 use linked_list_allocator::LockedHeap;
+use vfs::{OpenFlags, UserDirEntry};
 
 pub mod console;
 mod syscall;
@@ -45,11 +46,6 @@ pub fn init_heap() {
 fn main() -> i32 {
     panic!("no main")
 }
-
-// #[unsafe(no_mangle)]
-// pub extern "C" fn _start() {
-//     exit(main());
-// }
 
 global_asm!(
     "
@@ -138,4 +134,13 @@ pub fn brk(addr: u64) -> u64 {
 }
 pub fn waitpid(pid: u64) -> i32 {
     sys_wait(pid) as _
+}
+pub fn open(path: &str, flags: OpenFlags) -> u64 {
+    sys_open(path, flags.bits())
+}
+pub fn close(fd: u64) -> u64 {
+    sys_close(fd)
+}
+pub fn getdents(fd: u64, buf: &mut [UserDirEntry]) -> u64 {
+    sys_getdents(fd, buf)
 }

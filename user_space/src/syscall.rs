@@ -1,4 +1,5 @@
 use core::arch::asm;
+use vfs::UserDirEntry;
 
 fn syscall(no: u64, args: [u64; 3]) -> u64 {
     let ret: u64;
@@ -15,11 +16,17 @@ fn syscall(no: u64, args: [u64; 3]) -> u64 {
     ret
 }
 
+pub fn sys_read(fd: u64, buffer: &mut [u8]) -> u64 {
+    syscall(0, [fd, buffer.as_mut_ptr() as _, buffer.len() as u64])
+}
 pub fn sys_write(fd: u64, buffer: &[u8]) -> u64 {
     syscall(1, [fd, buffer.as_ptr() as _, buffer.len() as u64])
 }
-pub fn sys_read(fd: u64, buffer: &mut [u8]) -> u64 {
-    syscall(0, [fd, buffer.as_mut_ptr() as _, buffer.len() as u64])
+pub fn sys_open(path: &str, flags: u32) -> u64 {
+    syscall(2, [path.as_ptr() as _, path.len() as u64, flags as u64])
+}
+pub fn sys_close(fd: u64) -> u64 {
+    syscall(3, [fd, 0, 0])
 }
 pub fn sys_exit(code: u64) -> u64 {
     syscall(60, [code, 0, 0])
@@ -46,4 +53,7 @@ pub fn sys_brk(addr: u64) -> u64 {
 }
 pub fn sys_wait(pid: u64) -> u64 {
     syscall(61, [pid, 0, 0]) as _
+}
+pub fn sys_getdents(fd: u64, buf: &mut [UserDirEntry]) -> u64 {
+    syscall(78, [fd, buf.as_mut_ptr() as _, buf.len() as u64])
 }

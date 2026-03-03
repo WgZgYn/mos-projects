@@ -5,7 +5,8 @@ use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
 use vfs::{
-    DirEntry, File, FileOps, Inode, InodeOps, MountFlags, SuperBlock, VFS, VfsError, VfsResult,
+    DirEntry, File, FileOps, Inode, InodeOps, MountFlags, OpenFlags, SuperBlock, VFS, VfsError,
+    VfsResult,
 };
 
 impl VFS for RamFsManager<'static> {
@@ -139,8 +140,11 @@ impl InodeOps for FsNode {
             fs: self.fs.clone(),
             idx: self.idx,
         });
-        let file = File::from_inode(node.clone());
-        file.seek(offset * structs_size::RAMFS_DIR_ITEM_SIZE);
+        let mut file = File::new(
+            node.clone(),
+            (offset * structs_size::RAMFS_DIR_ITEM_SIZE) as _,
+            OpenFlags::WRITE,
+        );
         let mut item = [0; structs_size::RAMFS_DIR_ITEM_SIZE];
         let n = file.read(&mut item)?;
         if n == 0 {
@@ -166,7 +170,7 @@ impl InodeOps for FsNode {
 
 impl Inode for FsNode {
     fn meta_data(&self) -> &[u8] {
-        todo!()
+        &[]
     }
 
     fn file_size(&self) -> u64 {
