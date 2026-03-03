@@ -1,12 +1,12 @@
-use crate::RamFsManager;
-use crate::constant::{RAMFS_FRAME_SIZE_BYTE, structs_size};
+use crate::constant::{structs_size, RAMFS_FRAME_SIZE_BYTE};
 use crate::fs::{DirItem, FileType};
 use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
+use crate::RamFsManager;
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
 use vfs::{
-    DirEntry, File, FileOps, Inode, InodeOps, MountFlags, OpenFlags, SuperBlock, VFS, VfsError,
-    VfsResult,
+    DirEntry, File, FileOps, Inode, InodeOps, MountFlags, OpenFlags, SuperBlock, VfsError, VfsResult,
+    VFS,
 };
 
 impl VFS for RamFsManager<'static> {
@@ -106,7 +106,7 @@ impl InodeOps for FsNode {
             .ok_or(VfsError::NotFound)
     }
 
-    fn create(&self, name: &str, file_type: vfs::FileType) -> VfsResult<Arc<dyn Inode>> {
+    fn create(self: Arc<Self>, name: &str, file_type: vfs::FileType) -> VfsResult<Arc<dyn Inode>> {
         let parent_inode_idx = self.idx;
         let file_type = if file_type == vfs::FileType::Directory {
             FileType::Directory
@@ -130,12 +130,9 @@ impl InodeOps for FsNode {
     }
 
     fn readdir(&self, offset: usize) -> Result<Option<DirEntry>, VfsError> {
-        let fs = self.fs.lock();
-        let node = &fs[self.idx];
-        if node.file_type != FileType::Directory {
+        if self.file_type() != vfs::FileType::Directory {
             return Err(VfsError::NotDir);
         }
-        drop(fs);
         let node = Arc::new(FsNode {
             fs: self.fs.clone(),
             idx: self.idx,
@@ -160,7 +157,10 @@ impl InodeOps for FsNode {
                     } else {
                         vfs::FileType::Regular
                     },
-                    node,
+                    Arc::new(FsNode {
+                        fs: self.fs.clone(),
+                        idx: item.index(),
+                    }),
                 )));
             };
         }
@@ -174,7 +174,10 @@ impl Inode for FsNode {
     }
 
     fn file_size(&self) -> u64 {
-        self.fs.lock()[self.idx].size
+        let fs = self.fs.lock();
+        let index = self.idx;
+        let inode = &fs[index];
+        inode.size
     }
 
     fn file_type(&self) -> vfs::FileType {
