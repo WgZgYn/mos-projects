@@ -1,67 +1,73 @@
-use crate::{FileOps, VfsError, VfsResult};
+use crate::{DirEntry, FileHandler, Inode, OpenFlags, VfsError, VfsResult};
 use alloc::sync::Arc;
-use core::ops::Deref;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use kernel_utils::Mutex;
 
 pub struct File {
-    inode: Arc<dyn FileOps>,
-    offset: AtomicUsize,
+    pub inode: Arc<dyn Inode>,
+    offset: u64,
+    flags: OpenFlags,
 }
 
 impl File {
-    pub fn from_inode(inode: Arc<dyn FileOps>) -> Self {
-        Self::new(inode, 0)
+    pub fn inode(&self) -> &Arc<dyn Inode> {
+        &self.inode
     }
-    pub fn new(inode: Arc<dyn FileOps>, offset: usize) -> Self {
+    pub fn new(inode: Arc<dyn Inode>, offset: u64, flags: OpenFlags) -> Self {
         Self {
             inode,
-            offset: AtomicUsize::new(offset),
+            offset,
+            flags,
         }
     }
-    pub fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
-        let off = self.offset.load(Ordering::Relaxed);
-        let n = self.inode.read_at(off, buf)?;
-        self.offset.fetch_add(n, Ordering::Relaxed);
+    pub fn read(&mut self, buf: &mut [u8]) -> VfsResult<usize> {
+        let n = self.inode.read_at(self.offset as _, buf)?;
+        self.offset += n as u64;
         Ok(n)
     }
-    pub fn write(&self, buf: &[u8]) -> VfsResult<usize> {
-        let off = self.offset.load(Ordering::Relaxed);
-        let n = self.inode.write_at(off, buf)?;
-        self.offset.fetch_add(n, Ordering::Relaxed);
+    pub fn write(&mut self, buf: &[u8]) -> VfsResult<usize> {
+        let n = self.inode.write_at(self.offset as _, buf)?;
+        self.offset += n as u64;
         Ok(n)
     }
-    pub fn seek(&self, offset: usize) {
-        self.offset.store(offset, Ordering::SeqCst);
+    pub fn set_offset(&mut self, offset: u64) {
+        self.offset = offset;
     }
-    pub fn dup(self) -> DupFile {
-        DupFile(Arc::new(self))
+    pub fn is_dir(&self) -> bool {
+        self.flags.contains(OpenFlags::DIRECTORY)
+    }
+    fn read_dir(&self, offset: usize) -> VfsResult<Option<DirEntry>> {
+        if !self.is_dir() {
+            Err(VfsError::NotDir)
+        } else {
+            self.inode.readdir(offset)
+        }
     }
 }
 
-#[derive(Clone)]
-pub struct DupFile(Arc<File>);
-impl Deref for DupFile {
-    type Target = File;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+pub type FileRef = Arc<Mutex<File>>;
+
+pub struct RegularFile {
+    inner: Mutex<File>,
+}
+
+impl RegularFile {
+    pub fn new(file: File) -> Self {
+        Self {
+            inner: Mutex::new(file),
+        }
     }
 }
 
-pub struct ReadOnlyFile(File);
-impl ReadOnlyFile {
-    fn new(file: File) -> Self {
-        Self(file)
+impl FileHandler for RegularFile {
+    fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
+        self.inner.lock().read(buf)
     }
-    pub fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
-        let off = self.0.offset.load(Ordering::Relaxed);
-        let n = self.0.inode.read_at(off, buf)?;
-        self.0.offset.fetch_add(n, Ordering::Relaxed);
-        Ok(n)
+
+    fn write(&self, buf: &[u8]) -> VfsResult<usize> {
+        self.inner.lock().write(buf)
     }
-    pub fn write(&self, _buf: &[u8]) -> VfsResult<usize> {
-        Err(VfsError::PermissionDenied)
-    }
-    pub fn seek(&self, offset: usize) {
-        self.0.offset.store(offset, Ordering::SeqCst);
+
+    fn read_dir(&self, offset: usize) -> VfsResult<Option<DirEntry>> {
+        self.inner.lock().read_dir(offset)
     }
 }

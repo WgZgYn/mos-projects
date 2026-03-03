@@ -13,7 +13,7 @@ use alloc::string::String;
 use alloc::sync::Arc;
 use kernel_utils::{RwLock, bitflags, string_enum};
 
-pub use crate::file::File;
+pub use crate::file::{File, FileRef, RegularFile};
 
 // below is dynamic dispatch compatible
 string_enum!(
@@ -26,6 +26,9 @@ string_enum!(
         PermissionDenied,
         IoError,
         AlreadyExists,
+        FileNameIllegal,
+        NotOpen,
+        BadFileDesc,
     }
 );
 
@@ -47,9 +50,11 @@ bitflags! {
         const READ = 1;
         const WRITE = 2;
         const READ_WRITE = OpenFlags::READ.bits() | OpenFlags::WRITE.bits();
+
         const CREATE = 4;
         const APPEND = 8;
         const TRUNC = 16;
+        const DIRECTORY = 32;
     }
 }
 
@@ -57,6 +62,38 @@ pub struct DirEntry {
     name: String,
     ft: FileType,
     node: Arc<dyn Inode>,
+}
+
+#[derive(Clone)]
+pub struct UserDirEntry {
+    pub name: [u8; 32],
+    pub file_type: FileType,
+    pub size: u64,
+}
+
+impl UserDirEntry {
+    pub fn from(entry: &DirEntry) -> Self {
+        let mut name = [0_u8; 32];
+        let bs = entry.name().as_bytes();
+        for i in 0..31.min(bs.len()) {
+            name[i] = bs[i];
+        }
+        Self {
+            name,
+            file_type: entry.file_type(),
+            size: entry.node.file_size(),
+        }
+    }
+    pub fn name(&self) -> Option<&str> {
+        let mut i = 0;
+        while i < self.name.len() {
+            if self.name[i] == 0 {
+                return core::str::from_utf8(&self.name[..i]).ok();
+            }
+            i += 1;
+        }
+        None
+    }
 }
 
 impl DirEntry {
@@ -68,6 +105,9 @@ impl DirEntry {
     }
     pub fn file_type(&self) -> FileType {
         self.ft
+    }
+    pub fn node(&self) -> Arc<dyn Inode> {
+        self.node.clone()
     }
 }
 
@@ -104,7 +144,20 @@ pub trait InodeOps: Send + Sync {
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>>;
 }
 
-pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>> {
+pub trait FileHandler: Send + Sync {
+    fn read(&self, buf: &mut [u8]) -> VfsResult<usize>;
+    fn write(&self, buf: &[u8]) -> VfsResult<usize>;
+    fn read_dir(&self, offset: usize) -> VfsResult<Option<DirEntry>> {
+        Err(VfsError::NotDir)
+    }
+}
+
+fn is_legal_filename(name: &str) -> bool {
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
+pub fn vfs_open(root: Arc<dyn Inode>, path: &str, flags: OpenFlags) -> VfsResult<File> {
     let mut cur = root.clone();
     for comp in path.as_path() {
         if cur.file_type() != FileType::Directory {
@@ -114,18 +167,35 @@ pub fn lookup_path(path: &str, root: Arc<dyn Inode>) -> VfsResult<Arc<dyn Inode>
             Component::Root => root.clone(),
             Component::Current => continue,
             Component::Parent => cur.parent().unwrap_or(cur),
-            Component::Normal(path) => cur.lookup(path)?,
+            Component::Normal(path) => match cur.lookup(path) {
+                Ok(node) => node,
+                Err(VfsError::NotFound) => {
+                    if !flags.contains(OpenFlags::CREATE) {
+                        return Err(VfsError::NotFound);
+                    }
+                    if !is_legal_filename(path) {
+                        return Err(VfsError::FileNameIllegal);
+                    }
+                    cur.create(
+                        path,
+                        if flags.contains(OpenFlags::DIRECTORY) {
+                            FileType::Directory
+                        } else {
+                            FileType::Regular
+                        },
+                    )?
+                }
+                Err(e) => return Err(e),
+            },
         }
     }
-    Ok(cur)
-}
-
-pub fn vfs_open(root: Arc<dyn Inode>, path: &str) -> VfsResult<Arc<dyn Inode>> {
-    let node = lookup_path(path, root)?;
-    if node.file_type() != FileType::Directory && node.file_type() != FileType::Regular {
-        return Err(VfsError::NotFile);
-    }
-    Ok(node)
+    let offset = if flags.contains(OpenFlags::APPEND) {
+        cur.file_size()
+    } else {
+        0
+    };
+    let file = File::new(cur, offset, flags);
+    Ok(file)
 }
 
 pub struct DirIter {
