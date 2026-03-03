@@ -1,17 +1,16 @@
 #![no_std]
 
+extern crate alloc;
 mod file;
 mod path;
 mod traits;
-
-extern crate alloc;
 
 use crate::path::{AsPath, Component};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::sync::Arc;
-use kernel_utils::{RwLock, bitflags, string_enum};
+use kernel_utils::{bitflags, string_enum, RwLock};
 
 pub use crate::file::{File, FileRef, RegularFile};
 
@@ -58,6 +57,7 @@ bitflags! {
     }
 }
 
+#[derive(Clone)]
 pub struct DirEntry {
     name: String,
     ft: FileType,
@@ -140,7 +140,7 @@ pub trait FileOps: Send + Sync {
 pub trait InodeOps: Send + Sync {
     fn parent(&self) -> Option<Arc<dyn Inode>>;
     fn lookup(&self, name: &str) -> VfsResult<Arc<dyn Inode>>;
-    fn create(&self, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
+    fn create(self: Arc<Self>, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>>;
 }
 
@@ -153,12 +153,19 @@ pub trait FileHandler: Send + Sync {
 }
 
 fn is_legal_filename(name: &str) -> bool {
-    name.chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+    name.len() < 32
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
 }
 
-pub fn vfs_open(root: Arc<dyn Inode>, path: &str, flags: OpenFlags) -> VfsResult<File> {
-    let mut cur = root.clone();
+pub fn vfs_open(
+    root: Arc<dyn Inode>,
+    cur: Arc<dyn Inode>,
+    path: &str,
+    flags: OpenFlags,
+) -> VfsResult<File> {
+    let mut cur = cur;
     for comp in path.as_path() {
         if cur.file_type() != FileType::Directory {
             return Err(VfsError::NotDir);
@@ -166,7 +173,7 @@ pub fn vfs_open(root: Arc<dyn Inode>, path: &str, flags: OpenFlags) -> VfsResult
         cur = match comp {
             Component::Root => root.clone(),
             Component::Current => continue,
-            Component::Parent => cur.parent().unwrap_or(cur),
+            Component::Parent => cur.parent().unwrap_or(root.clone()),
             Component::Normal(path) => match cur.lookup(path) {
                 Ok(node) => node,
                 Err(VfsError::NotFound) => {
