@@ -17,7 +17,7 @@ fn main() -> i32 {
         let entries = buffer[..counts as usize].assume_init_ref();
         for entry in entries {
             if let Some(name) = entry.name() {
-                println!("{}", name);
+                println!("{:?}\t{}\t{}", entry.file_type, entry.size, name);
             }
         }
     }
