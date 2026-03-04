@@ -57,3 +57,6 @@ pub fn sys_wait(pid: u64) -> u64 {
 pub fn sys_getdents(fd: u64, buf: &mut [UserDirEntry]) -> u64 {
     syscall(78, [fd, buf.as_mut_ptr() as _, buf.len() as u64])
 }
+pub fn sys_chdir(fd: u64) -> u64 {
+    syscall(80, [fd, 0, 0])
+}

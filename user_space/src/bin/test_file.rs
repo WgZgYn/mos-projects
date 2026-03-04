@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_space::{close, fork, init_heap, open, println, read, waitpid, write};
+use user_space::{chdir, close, fork, init_heap, open, println, read, waitpid, write};
 use vfs::OpenFlags;
 
 #[unsafe(no_mangle)]
@@ -38,6 +38,16 @@ fn main() -> i32 {
         println!("s: {:?}", core::str::from_utf8(&buffer[..n as usize]));
         close(f);
         close(txt);
+        test_dir();
     }
     0
+}
+
+fn test_dir() {
+    let new_dir = open("./document", OpenFlags::READ | OpenFlags::DIRECTORY | OpenFlags::CREATE);
+    chdir(new_dir);
+    let new_file = open("./data.bin", OpenFlags::READ_WRITE | OpenFlags::CREATE);
+    write(new_file, b"hello world");
+    close(new_file);
+    close(new_dir);
 }
