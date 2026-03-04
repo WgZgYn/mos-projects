@@ -5,7 +5,7 @@ use crate::RamFsManager;
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
 use vfs::{
-    DirEntry, File, FileOps, Inode, InodeOps, MountFlags, OpenFlags, SuperBlock, VfsError, VfsResult,
+    DirEntry, FileOps, Inode, InodeOps, MountFlags, SuperBlock, VfsError, VfsResult,
     VFS,
 };
 
@@ -137,13 +137,11 @@ impl InodeOps for FsNode {
             fs: self.fs.clone(),
             idx: self.idx,
         });
-        let mut file = File::new(
-            node.clone(),
-            (offset * structs_size::RAMFS_DIR_ITEM_SIZE) as _,
-            OpenFlags::WRITE,
-        );
+
+        let bytes_offset = offset * structs_size::RAMFS_DIR_ITEM_SIZE;
+
         let mut item = [0; structs_size::RAMFS_DIR_ITEM_SIZE];
-        let n = file.read(&mut item)?;
+        let n = node.read_at(bytes_offset, &mut item)?;
         if n == 0 {
             return Ok(None);
         }
