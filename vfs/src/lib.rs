@@ -10,9 +10,9 @@ use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::sync::Arc;
-use kernel_utils::{bitflags, string_enum, RwLock};
+use kernel_utils::{RwLock, bitflags, string_enum};
 
-pub use crate::file::{File, FileRef, RegularFile};
+pub use crate::file::File;
 
 // below is dynamic dispatch compatible
 string_enum!(
@@ -46,14 +46,13 @@ pub enum FileType {
 
 bitflags! {
     pub struct OpenFlags: u32 {
-        const READ = 1;
-        const WRITE = 2;
+        const READ = 1 << 0;
+        const WRITE = 1 << 1;
         const READ_WRITE = OpenFlags::READ.bits() | OpenFlags::WRITE.bits();
-
-        const CREATE = 4;
-        const APPEND = 8;
-        const TRUNC = 16;
-        const DIRECTORY = 32;
+        const CREATE = 1 << 2;
+        const APPEND = 1 << 3;
+        const TRUNC = 1 << 4;
+        const DIRECTORY = 1 << 5;
     }
 }
 
@@ -142,14 +141,6 @@ pub trait InodeOps: Send + Sync {
     fn lookup(&self, name: &str) -> VfsResult<Arc<dyn Inode>>;
     fn create(self: Arc<Self>, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>>;
-}
-
-pub trait FileHandler: Send + Sync {
-    fn read(&self, buf: &mut [u8]) -> VfsResult<usize>;
-    fn write(&self, buf: &[u8]) -> VfsResult<usize>;
-    fn read_dir(&self, offset: usize) -> VfsResult<Option<DirEntry>> {
-        Err(VfsError::NotDir)
-    }
 }
 
 fn is_legal_filename(name: &str) -> bool {
