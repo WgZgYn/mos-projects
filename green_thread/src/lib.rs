@@ -16,7 +16,7 @@ pub enum State {
     Ready,
 }
 
-const DEFAULT_STACK_SIZE: usize = 1024 * 1024 * 2;
+const DEFAULT_STACK_SIZE: usize = 1024 * 4;
 pub const MAX_THREADS: usize = 4;
 
 static mut RUNTIME_MUT: *mut Runtime = null_mut();
@@ -39,7 +39,7 @@ pub struct Thread {
     state: State,
 }
 
-struct Runtime {
+pub struct Runtime {
     threads: Vec<Thread>,
     current: usize,
 }
@@ -55,15 +55,11 @@ impl Thread {
 }
 impl Runtime {
     pub fn new() -> Box<Self> {
-        let base_thread = Thread {
-            stack: vec![0u8; DEFAULT_STACK_SIZE],
-            ctx: ThreadContext::default(),
-            state: State::Running,
-        };
+        let mut base_thread = Thread::new();
+        base_thread.state = State::Running;
 
         let mut threads = vec![base_thread];
-        let mut available_threads: Vec<Thread> = (0..MAX_THREADS).map(|_| Thread::new()).collect();
-        threads.append(&mut available_threads); // one main with threads
+        (0..MAX_THREADS).for_each(|_| threads.push(Thread::new()));
 
         let mut runtime = Box::new(Runtime {
             threads,
@@ -86,6 +82,10 @@ impl Runtime {
         loop {
             core::hint::spin_loop();
         }
+    }
+
+    pub fn run_ready(&mut self) {
+        while self.t_yield() {}
     }
 
     fn t_return(&mut self) {
@@ -118,7 +118,7 @@ impl Runtime {
             let new: *const ThreadContext = &self.threads[pos].ctx;
             asm!("call switch", in("rdi") old, in("rsi") new, clobber_abi("C"));
         }
-        !self.threads.is_empty()
+        true
     }
 
     pub fn spawn(&mut self, f: fn()) {
@@ -136,6 +136,7 @@ impl Runtime {
             core::ptr::write(s_ptr.offset(-16) as *mut u64, guard as u64);
             core::ptr::write(s_ptr.offset(-24) as *mut u64, skip as u64);
             core::ptr::write(s_ptr.offset(-32) as *mut u64, f as u64);
+            available.ctx.rsp = s_ptr.offset(-32) as u64;
         }
 
         available.state = State::Ready;
