@@ -9,7 +9,7 @@ use vfs::{OpenFlags, UserDirEntry};
 fn main() -> i32 {
     init_heap();
     let current_dir = open("./", OpenFlags::READ | OpenFlags::DIRECTORY);
-    let mut buffer = [const { MaybeUninit::<UserDirEntry>::uninit() }; 16];
+    let mut buffer = [const { MaybeUninit::<UserDirEntry>::uninit() }; 32];
     unsafe {
         let ptr = buffer.as_mut_ptr().cast::<UserDirEntry>();
         let len = buffer.len();
