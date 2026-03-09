@@ -45,6 +45,7 @@ pub enum FileType {
 }
 
 bitflags! {
+    #[derive(Copy, Clone, Eq, PartialEq)]
     pub struct OpenFlags: u32 {
         const READ = 1 << 0;
         const WRITE = 1 << 1;

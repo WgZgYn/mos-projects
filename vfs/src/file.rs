@@ -15,6 +15,9 @@ impl File {
     pub fn inode(&self) -> &Arc<dyn Inode> {
         &self.inode
     }
+    pub fn flags(&self) -> OpenFlags {
+        self.flags
+    }
     pub fn new(inode: Arc<dyn Inode>, offset: u64, flags: OpenFlags) -> Self {
         Self {
             inode,
