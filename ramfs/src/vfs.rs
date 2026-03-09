@@ -1,13 +1,11 @@
-use crate::constant::{structs_size, RAMFS_FRAME_SIZE_BYTE};
+use crate::RamFsManager;
+use crate::constant::{RAMFS_FRAME_SIZE_BYTE, structs_size};
 use crate::fs::{DirItem, FileType};
 use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
-use crate::RamFsManager;
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
-use vfs::{
-    DirEntry, FileOps, Inode, InodeOps, MountFlags, SuperBlock, VfsError, VfsResult,
-    VFS,
-};
+use kernel_utils::trace;
+use vfs::{DirEntry, FileOps, Inode, InodeOps, MountFlags, SuperBlock, VFS, VfsError, VfsResult};
 
 impl VFS for RamFsManager<'static> {
     fn name(&self) -> Option<&str> {
@@ -120,6 +118,11 @@ impl InodeOps for FsNode {
             .new_inode(name, file_type, parent_inode_idx)
             .map_err(|_| VfsError::NoSpace)?;
 
+        trace!("created inode {:?}", inode_idx);
+        trace!(
+            "add dir entry {:?} from parent {:?}",
+            inode_idx, parent_inode_idx
+        );
         fs.add_dir_entry(parent_inode_idx, inode_idx)
             .map_err(|_| VfsError::NoSpace)?;
 
@@ -138,6 +141,8 @@ impl InodeOps for FsNode {
             idx: self.idx,
         });
 
+        trace!("dir size: {}", node.file_size());
+
         let bytes_offset = offset * structs_size::RAMFS_DIR_ITEM_SIZE;
 
         let mut item = [0; structs_size::RAMFS_DIR_ITEM_SIZE];
@@ -148,6 +153,7 @@ impl InodeOps for FsNode {
         if n == structs_size::RAMFS_DIR_ITEM_SIZE {
             unsafe {
                 let item: DirItem = core::mem::transmute(item);
+                trace!("dir item: {:?}", item.name());
                 return Ok(Some(DirEntry::new(
                     item.name().to_owned(),
                     if item.file_type() == FileType::Directory {
