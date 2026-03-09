@@ -2,9 +2,10 @@
 #![no_main]
 #![feature(linkage)]
 
-use crate::syscall::{sys_brk, sys_chdir, sys_close, sys_exec, sys_exit, sys_fork, sys_getdents, sys_open, sys_rand, sys_read, sys_sleep, sys_wait, sys_write, sys_yield};
+use crate::syscall::{sys_brk, sys_chdir, sys_close, sys_exec, sys_exit, sys_fork, sys_getdents, sys_mmap, sys_munmap, sys_open, sys_rand, sys_read, sys_sleep, sys_wait, sys_write, sys_yield};
 use core::arch::global_asm;
 use linked_list_allocator::LockedHeap;
+use mos_lib::memory::{MemoryMapFlags, MemoryProtFlags};
 use vfs::{OpenFlags, UserDirEntry};
 
 pub mod console;
@@ -106,7 +107,7 @@ pub fn write_stdout_number(mut v: usize) -> u64 {
     write(STDOUT, &buffer[..i])
 }
 
-pub fn exit(code: i32) -> u64 {
+pub fn exit(code: i32) -> ! {
     sys_exit(code as _)
 }
 
@@ -143,4 +144,18 @@ pub fn getdents(fd: u64, buf: &mut [UserDirEntry]) -> u64 {
 }
 pub fn chdir(fd: u64) -> u64 {
     sys_chdir(fd)
+}
+pub fn mmap(
+    addr: u64,
+    len: u64,
+    prot: MemoryProtFlags,
+    flags: MemoryMapFlags,
+    fd: i32,
+    offset: u64,
+) -> u64 {
+    sys_mmap(addr, len, prot.bits(), flags.bits(), fd, offset)
+}
+
+pub fn munmap(addr: u64, len: u64) -> u64 {
+    sys_munmap(addr, len)
 }

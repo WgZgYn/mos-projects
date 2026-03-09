@@ -51,7 +51,6 @@ fn handler_exec(path: &str) {
             exit(-1);
         }
     } else {
-        println!("waitpid");
         waitpid(pid);
         print!(">> ");
     }
