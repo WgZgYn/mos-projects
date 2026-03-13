@@ -1,36 +1,27 @@
-use crate::command::Profile;
-use std::path::{Path, PathBuf};
+use crate::command::BootMode;
 
 pub const QEMU_X86_64_PATH: &str = "qemu-system-x86_64";
-
 pub const KERNEL_NAME: &str = "mos";
-pub const KERNEL_PATH: &str = r#"mos"#;
-pub const USER_SPACE_PATH: &str = r#"user_space"#;
-pub const USER_SPACE_BINS_DIR: &str = r#"user_space/src/bin"#;
-pub const TARGET_PATH: &str = r#"target"#;
-pub const RAMFS_OUT_PATH: &str = r#"build/ramfsout/ramfs.bin"#;
-pub const BOOT_IMAGES_OUT_DIR: &str = r#"build/image"#;
+pub const RAMFS_ROOT_DIR_PATH: &str = r"build/ramfsroot";
+pub const RAMFS_FILE_OUT_PATH: &str = r"build/ramfsout/ramfs.bin";
+pub const RAMFS_ADDR: u64 = 0x50000000;
 
-pub fn kernel_target_path<P: AsRef<Path>>(profile: Profile, name: P) -> PathBuf {
-    pub const KERNEL_ARCH: &str = "x86_64-unknown-none";
-    Path::new(TARGET_PATH)
-        .join(KERNEL_ARCH)
-        .join(profile.as_str())
-        .join(name)
+pub fn kernel_elf_output_naming(name: &str, boot_mode: BootMode) -> String {
+    pub const KERNEL_ELF_OUT_DIR_PATH: &str = r"build/kernel";
+
+    format!(
+        "{}/{name}-{mode}",
+        KERNEL_ELF_OUT_DIR_PATH,
+        mode = boot_mode.as_str()
+    )
 }
 
-pub fn kernel_elf_path(profile: Profile) -> PathBuf {
-    kernel_target_path(profile, KERNEL_NAME)
-}
+pub fn image_output_naming(kernel_name: &str, boot_mode: BootMode) -> String {
+    pub const IMAGE_OUT_DIR_PATH: &str = r"build/image";
 
-pub fn user_space_target_path<P: AsRef<Path>>(profile: Profile, name: P) -> PathBuf {
-    pub const USER_SPACE_ARCH: &str = "x86_64-mos";
-    Path::new(TARGET_PATH)
-        .join(USER_SPACE_ARCH)
-        .join(profile.as_str())
-        .join(name)
-}
-
-pub fn rs_file_name(name: &str) -> &str {
-    name.trim_end_matches(".rs")
+    format!(
+        "{}/{kernel_name}-{}.img",
+        IMAGE_OUT_DIR_PATH,
+        boot_mode.as_str()
+    )
 }

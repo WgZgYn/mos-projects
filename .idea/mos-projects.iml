@@ -5,30 +5,41 @@
       <sourceFolder url="file://$MODULE_DIR$/mos/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mos/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/allocators/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/user_space/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/vga/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/bitmap/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/optional/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/psf/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/buddy_allocator/benches" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/buddy_allocator/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/ppm/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/kernel_utils/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/ramfs/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ramfs_builder/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/user_space/test_gp/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/user_space/test_syscall/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/vfs/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/user_space/test_exit/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/user_space/test_rand/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/bs_string/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/green_thread/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/collections/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/note/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ktests/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mos_lib/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/fs/mem_fs/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/fs/ramfs/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/allocators/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/bitmap/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/bs_string/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/buddy_allocator/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/buddy_allocator/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/collections/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/elf_parser/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/green_thread/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/note/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/optional/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/ppm/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/psf/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/vga/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/test_dyn/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/test_dyn_bin/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/user_space/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/user_space/test_exit/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/user_space/test_gp/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/user_space/test_rand/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/user_space/test_syscall/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
-      <excludeFolder url="file://$MODULE_DIR$/user_space/target" />
+      <excludeFolder url="file://$MODULE_DIR$/user/target" />
+      <excludeFolder url="file://$MODULE_DIR$/user/test_dyn/target" />
+      <excludeFolder url="file://$MODULE_DIR$/user/test_dyn_bin/target" />
+      <excludeFolder url="file://$MODULE_DIR$/user/user_space/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

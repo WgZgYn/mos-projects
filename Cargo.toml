@@ -14,9 +14,13 @@ log = "0.4.29"
 bootloader = "0.11.15"
 bootloader-boot-config = "0.11.15"
 ramfs_builder = { path = "ramfs_builder" }
+serde_json = "1.0.149"
+user = { path = "user" }
+
 
 [workspace]
-members = ["allocators", "mos", "vga", "green_thread", "bitmap", "optional", "psf", "buddy_allocator", "ppm", "ramfs_builder", "ramfs", "kernel_utils", "vfs", "user_space", "bs_string", "collections", "note", "mem_fs"]
+members = ["libs/allocators", "mos", "libs/vga", "libs/green_thread", "libs/bitmap", "libs/optional", "libs/psf", "libs/buddy_allocator", "libs/ppm", "ramfs_builder", "fs/ramfs", "kernel_utils", "vfs", "user/user_space", "libs/bs_string", "libs/collections", "libs/note", "fs/mem_fs", "ktests", "mos_lib", "libs/elf_parser"]
+exclude = ["user/test_dyn", "user/test_dyn_bin", "user"]
 
 [features]
 map_ramfs = []

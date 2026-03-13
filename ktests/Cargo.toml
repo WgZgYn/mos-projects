@@ -1,0 +1,8 @@
+[package]
+name = "ktests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+vfs = { path = "../vfs"}
+mem_fs = { path = "../fs/mem_fs" }

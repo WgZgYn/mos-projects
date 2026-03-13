@@ -1,0 +1,9 @@
+[package]
+name = "mem_fs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+vfs = { path = "../../vfs" }
+spin = "0.10.0"
+lazy_static = "1.5.0"

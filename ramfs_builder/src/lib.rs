@@ -8,6 +8,8 @@ use std::io::{Read, Write};
 use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::path::Path;
+use std::sync::Arc;
+use vfs::{FileType, Inode};
 
 pub struct RamfsBuilder {
     _metadata: Box<PageAligned<[u8; 1024 * 1024 * 4]>>,
@@ -78,18 +80,50 @@ pub fn build_ramfs(
     ramfsout: impl AsRef<Path>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let builder = RamfsBuilder::new()?;
-    let dir = ramfsroot.as_ref().read_dir()?;
+    let fs_root = builder.root();
+    build_helper(fs_root, ramfsroot)?;
+    builder.finish(ramfsout.as_ref())
+}
+
+fn build_helper(
+    fs_dir: Arc<dyn Inode>,
+    os_path: impl AsRef<Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let os_path = os_path.as_ref();
+    let dir = os_path.read_dir()?;
     for entry in dir {
         let entry = entry?;
         let name = entry.file_name();
         let ft = entry.file_type();
         match (name.to_str(), ft) {
             (Some(name), Ok(ft)) if ft.is_file() => {
-                let file = File::open(entry.path())?;
-                builder.insert_file(name, file)?;
+                let mut os_file = File::open(entry.path())?;
+                let fs_file = fs_dir
+                    .clone()
+                    .create(name, FileType::Regular)
+                    .map_err(|e| e.as_str())?;
+                let mut buffer = Vec::new();
+                os_file.read_to_end(&mut buffer)?;
+                fs_file.write_at(0, &buffer).map_err(|e| e.as_str())?;
+                info!("insert file {}:{:?} success", name, FileType::Regular);
+            }
+            (Some(name), Ok(ft)) if ft.is_dir() => {
+                let next_os_dir = os_path.join(name);
+                let fs_dir = fs_dir
+                    .clone()
+                    .create(name, FileType::Directory)
+                    .map_err(|e| e.as_str())?;
+                info!("insert file {}:{:?} success", name, FileType::Directory);
+                build_helper(fs_dir, next_os_dir)?;
+            }
+            (Some(name), ft) => {
+                info!(
+                    "insert file {} failed with unsupported file type {:?}",
+                    name, ft
+                );
             }
             _ => {}
         }
     }
-    builder.finish(ramfsout.as_ref())
+    Ok(())
 }

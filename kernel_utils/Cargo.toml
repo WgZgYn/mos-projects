@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bitmap = { path = "../bitmap" }
+bitmap = { path = "../libs/bitmap" }
 spin = "0.10.0"
 log = "0.4.28"
 bitflags = "2.10.0"

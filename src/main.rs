@@ -1,6 +1,4 @@
-#![feature(const_format_args)]
-
-// src/main.rs
+// src/lib
 use crate::command::Cli;
 use crate::execute::parse_run;
 use clap::Parser;

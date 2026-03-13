@@ -36,6 +36,7 @@ pub enum Commands {
 
 #[derive(Copy, Clone, Eq, PartialEq, ValueEnum)]
 pub enum BuildTarget {
+    User,
     Kernel,
     Ramfs,
     All,
@@ -51,6 +52,15 @@ pub struct Build {
 pub enum BootMode {
     Uefi,
     Bios,
+}
+
+impl BootMode {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            BootMode::Uefi => "uefi",
+            BootMode::Bios => "bios",
+        }
+    }
 }
 
 #[derive(Parser)]

@@ -28,6 +28,7 @@ fn main() {
     }
 
     let f = root
+        .clone()
         .create("hello.txt", FileType::Regular)
         .expect("failed to create file");
 

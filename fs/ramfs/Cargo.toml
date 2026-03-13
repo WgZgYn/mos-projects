@@ -1,0 +1,12 @@
+[package]
+name = "ramfs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kernel_utils = { path = "../../kernel_utils" }
+vfs = { path = "../../vfs" }
+conquer-once = { version = "0.4.0", default-features = false }
+[features]
+embedded-ramfs = []
+default = ["embedded-ramfs"]

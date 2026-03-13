@@ -1,0 +1,7 @@
+[package]
+name = "test_dyn_bin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+test_dyn = { path = "../test_dyn" }

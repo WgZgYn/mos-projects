@@ -1,9 +1,10 @@
-use crate::{DirEntry, Inode, OpenFlags, VfsError, VfsResult};
+use crate::{Dentry, DirEntry, Inode, OpenFlags, VfsError, VfsResult};
 use alloc::sync::Arc;
 use kernel_utils::Mutex;
 
 pub struct File {
     inode: Arc<dyn Inode>,
+    dentry: Arc<Dentry>,
     offset: Mutex<u64>,
     flags: OpenFlags,
 }
@@ -18,12 +19,16 @@ impl File {
     pub fn flags(&self) -> OpenFlags {
         self.flags
     }
-    pub fn new(inode: Arc<dyn Inode>, offset: u64, flags: OpenFlags) -> Self {
-        Self {
-            inode,
+    pub fn dentry(&self) -> &Arc<Dentry> {
+        &self.dentry
+    }
+    pub fn new(dentry: Arc<Dentry>, offset: u64, flags: OpenFlags) -> VfsResult<Self> {
+        Ok(Self {
+            inode: dentry.inode().ok_or(VfsError::NotFound)?,
+            dentry,
             offset: Mutex::new(offset),
             flags,
-        }
+        })
     }
     pub fn read(&self, buf: &mut [u8]) -> VfsResult<usize> {
         if !self.flags.contains(OpenFlags::READ) {
@@ -61,4 +66,3 @@ impl File {
         }
     }
 }
-
