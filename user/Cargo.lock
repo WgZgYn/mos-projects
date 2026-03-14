@@ -209,9 +209,6 @@ version = "0.1.0"
 [[package]]
 name = "test_dyn_bin"
 version = "0.1.0"
-dependencies = [
- "test_dyn",
-]
 
 [[package]]
 name = "unicode-ident"

@@ -11,5 +11,5 @@ log = "0.4.29"
 [workspace]
 members = ["test_dyn", "test_dyn_bin", "user_space"]
 
-[profile.release]
-panic = "abort"
+#[profile.release]
+#panic = "abort"
