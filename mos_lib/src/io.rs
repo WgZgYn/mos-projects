@@ -7,8 +7,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use core::ops::Deref;
-use kernel_utils::string_enum;
+
 use log::info;
+use string_num::string_enum;
 
 string_enum! {
     #[derive(Debug)]
@@ -26,13 +27,13 @@ pub struct IOError {
 }
 
 impl IOError {
-    const WRITE_ALL_EOF: Self = IOError {
+    pub const WRITE_ALL_EOF: Self = IOError {
         repr: IOErrorEnum::WriteZero,
     };
-    const UNKNOWN: Self = IOError {
+    pub const UNKNOWN: Self = IOError {
         repr: IOErrorEnum::NotFound,
     };
-    const ILLEGAL_UTF8: Self = IOError {
+    pub const ILLEGAL_UTF8: Self = IOError {
         repr: IOErrorEnum::InvalidInput,
     };
     fn is_interrupted(&self) -> bool {
@@ -105,8 +106,6 @@ pub fn read_to_end(mut reader: impl Read) -> IOResult<Vec<u8>> {
     Ok(buf)
 }
 
-
-
 pub trait ReadAt {
     fn read_at(&mut self, offset: usize, buf: &mut [u8]) -> IOResult<usize>;
 }
@@ -119,17 +118,5 @@ impl<R: Read + ?Sized> Read for &mut R {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> IOResult<usize> {
         (**self).read(buf)
-    }
-}
-
-impl Read for vfs::File {
-    fn read(&mut self, buf: &mut [u8]) -> IOResult<usize> {
-        vfs::File::read(self, buf).map_err(|_| IOError::UNKNOWN)
-    }
-}
-
-impl Read for &vfs::File {
-    fn read(&mut self, buf: &mut [u8]) -> IOResult<usize> {
-        vfs::File::read(self, buf).map_err(|_| IOError::UNKNOWN)
     }
 }

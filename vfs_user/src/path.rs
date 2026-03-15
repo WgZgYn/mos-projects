@@ -19,12 +19,12 @@ impl<T: AsRef<str>> AsPath for T {
 pub fn str_as_path(path: &str) -> impl Iterator<Item = Component<'_>> {
     let path = path.trim();
     let mut start_with_root = None;
-    
+
     // this means this is an absolute path
     if path.starts_with('/') {
         start_with_root = Some(Component::Root);
     }
-    
+
     // this part will never get '/' part
     start_with_root
         .into_iter()

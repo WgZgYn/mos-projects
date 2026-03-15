@@ -1,8 +1,8 @@
 use core::arch::asm;
 use core::ffi::c_char;
-use vfs::UserDirEntry;
 
 use mos_lib::syscall::Syscall;
+use vfs_user::UserDirEntry;
 
 fn syscall(no: u64, args: [u64; 3]) -> u64 {
     let ret: u64;
@@ -49,11 +49,8 @@ pub fn sys_write(fd: u64, buffer: &[u8]) -> u64 {
         [fd, buffer.as_ptr() as _, buffer.len() as u64],
     )
 }
-pub fn sys_open(path: &str, flags: u32) -> u64 {
-    syscall(
-        Syscall::Open as _,
-        [path.as_ptr() as _, path.len() as u64, flags as u64],
-    )
+pub fn sys_open(path: *const c_char, flags: u32) -> i64 {
+    syscall(Syscall::Open as _, [path as _, flags as u64, 0]) as _
 }
 pub fn sys_close(fd: u64) -> u64 {
     syscall(Syscall::Close as _, [fd, 0, 0])

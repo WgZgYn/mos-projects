@@ -4,8 +4,9 @@ use crate::fs::{DirItem, FileType};
 use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
-use kernel_utils::trace;
-use vfs::{DirEntry, FileOps, Inode, InodeOps, MountFlags, SuperBlock, VFS, VfsError, VfsResult};
+use log::trace;
+use vfs::traits::*;
+use vfs::{DirEntry, MountFlags, VfsError, VfsResult};
 
 impl VFS for RamFsManager<'static> {
     fn name(&self) -> Option<&str> {

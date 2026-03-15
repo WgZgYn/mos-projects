@@ -3,12 +3,11 @@
 extern crate alloc;
 
 use alloc::vec;
-use user_space::{init_heap, println};
+use user_lib::println;
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
     println!("--- test_heap --- start");
-    init_heap();
     let mut array = vec![1, 2, 3];
     array.push(4);
     println!("{:?}", array);

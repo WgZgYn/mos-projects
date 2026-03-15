@@ -5,7 +5,13 @@ edition = "2024"
 build = "build.rs"
 
 [dependencies]
+user_lib = { path = "../user_lib", default-features = false }
 
 [lib]
 crate-type = ["cdylib"]
 
+
+#[features]
+#alloc = [
+#    "user_lib/alloc"
+#]

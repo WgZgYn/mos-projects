@@ -1,16 +1,13 @@
 #![no_std]
 #![no_main]
 
-use mos_lib::memory::{MemoryMapFlags, MemoryProtFlags};
-use user_space::{exit, init_heap, mmap, open, println, write};
-use vfs::OpenFlags;
-
+use user_lib::fs::OpenFlags;
+use user_lib::mos::memory::*;
+use user_lib::{exit, mmap, open, println, write};
 #[unsafe(no_mangle)]
 fn main() -> i32 {
-    init_heap();
-
     let f = open(
-        "mmap.txt",
+        c"mmap.txt",
         OpenFlags::READ_WRITE | OpenFlags::CREATE | OpenFlags::APPEND,
     )
     .expect("should open or create mmap.txt");

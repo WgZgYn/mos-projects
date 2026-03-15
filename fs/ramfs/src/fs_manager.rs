@@ -6,8 +6,10 @@ use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use alloc::collections::BTreeMap;
 use alloc::sync::Weak;
 use core::ops::Deref;
-use kernel_utils::{Mutex, align_up, info, is_aligned, warn};
-use vfs::Inode;
+use kernel_utils::{align_up, is_aligned};
+use log::{info, warn};
+use spin::Mutex;
+use vfs::traits::Inode;
 
 pub struct RamFsManager<'a> {
     pub access: Mutex<&'a mut RamFs>,

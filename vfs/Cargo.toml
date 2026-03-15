@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-kernel_utils = { path = "../kernel_utils" }
+vfs_user = { path = "../vfs_user" }
+mos_lib = { path = "../mos_lib", features = ["alloc"] }
+log = "0.4.29"
+spin = "0.10.0"

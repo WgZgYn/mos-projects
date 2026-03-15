@@ -7,7 +7,8 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
 use spin::Mutex;
-use vfs::{DirEntry, FileOps, FileType, Inode, InodeOps, VfsError, VfsResult};
+use vfs::{DirEntry, FileType, VfsError, VfsResult};
+use vfs::traits::*;
 
 lazy_static! {
     pub static ref FS: SuperBlock = SuperBlock {

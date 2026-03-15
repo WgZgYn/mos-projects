@@ -93,11 +93,16 @@ pub fn build(
 ) -> Result<(), Box<dyn Error>> {
     match build.target {
         BuildTarget::User => build_user(RAMFS_ROOT_DIR_PATH).log_err("while building user"),
-        BuildTarget::Kernel => build_image(KERNEL_NAME, profile, boot_mode).log_err("while building kernel"),
-        BuildTarget::Ramfs => build_ramfs(RAMFS_ROOT_DIR_PATH, RAMFS_FILE_OUT_PATH).log_err("while building ramfs"),
+        BuildTarget::Kernel => {
+            build_image(KERNEL_NAME, profile, boot_mode).log_err("while building kernel")
+        }
+        BuildTarget::Ramfs => {
+            build_ramfs(RAMFS_ROOT_DIR_PATH, RAMFS_FILE_OUT_PATH).log_err("while building ramfs")
+        }
         BuildTarget::All => {
             build_user(RAMFS_ROOT_DIR_PATH).log_err("while building user")?;
-            build_ramfs(RAMFS_ROOT_DIR_PATH, RAMFS_FILE_OUT_PATH).log_err("while building ramfs")?;
+            build_ramfs(RAMFS_ROOT_DIR_PATH, RAMFS_FILE_OUT_PATH)
+                .log_err("while building ramfs")?;
             build_image(KERNEL_NAME, profile, boot_mode).log_err("while building image")
         }
     }

@@ -1,8 +1,7 @@
-#![feature(allocator_api)]
 #![no_std]
 #![no_main]
 
-use user_space::{println, sleep};
+use user_lib::{println, sleep};
 
 fn test_sleep() {
     println!("--- call sleep ---");

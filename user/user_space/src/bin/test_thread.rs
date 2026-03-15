@@ -1,12 +1,11 @@
 #![no_std]
 #![no_main]
 
-use user_space::{init_heap, println};
+use user_lib::println;
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
     println!("[TEST THREAD] start main");
-    init_heap();
     let mut rt = green_thread::Runtime::new();
     rt.spawn(calculate_fib);
     rt.spawn(calculate_prime);

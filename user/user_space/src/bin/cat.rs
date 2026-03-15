@@ -3,13 +3,11 @@
 extern crate alloc;
 
 use alloc::vec;
-use mos_lib::ffi::NullEndPointerArray;
-use user_space::{Args, init_heap, open, print, println, read};
-use vfs::OpenFlags;
+use user_lib::fs::OpenFlags;
+use user_lib::{Args, mos::ffi::NullEndPointerArray, open, print, println, read};
 
 #[unsafe(no_mangle)]
 fn main(argc: usize, argv: Args) -> i32 {
-    init_heap();
     let args = unsafe { NullEndPointerArray::from_ptr(argv) };
     let args = args.to_vec_cstring();
     if args.len() < 3 {
@@ -29,12 +27,9 @@ fn main(argc: usize, argv: Args) -> i32 {
         println!("`{:?}` is not a legal number", length);
         return -1;
     };
-    let Ok(filepath) = filepath.to_str() else {
-        println!("`{:?}` is not a legal filepath", filepath);
-        return -1;
-    };
+
     let Some(fd) = open(filepath, OpenFlags::READ) else {
-        println!("open {} failed", filepath);
+        println!("open {:?} failed", filepath);
         return -1;
     };
 
@@ -48,7 +43,7 @@ fn main(argc: usize, argv: Args) -> i32 {
             }
             println!();
         }
-        println!("read {} bytes from {}", n, filepath);
+        println!("read {} bytes from {:?}", n, filepath);
     } else {
         println!("read error");
         return -1;

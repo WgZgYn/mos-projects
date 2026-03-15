@@ -1,6 +1,9 @@
-use crate::{Dentry, DirEntry, Inode, OpenFlags, VfsError, VfsResult};
+use crate::dentry::Dentry;
+use crate::traits::Inode;
+use crate::{DirEntry, OpenFlags, VfsError, VfsResult};
 use alloc::sync::Arc;
-use kernel_utils::Mutex;
+use mos_lib::io::{IOError, IOResult, Read};
+use spin::Mutex;
 
 pub struct File {
     inode: Arc<dyn Inode>,
@@ -64,5 +67,17 @@ impl File {
                 Err(VfsError::PermissionDenied)
             }
         }
+    }
+}
+
+impl Read for File {
+    fn read(&mut self, buf: &mut [u8]) -> IOResult<usize> {
+        File::read(self, buf).map_err(|_| IOError::UNKNOWN)
+    }
+}
+
+impl Read for &File {
+    fn read(&mut self, buf: &mut [u8]) -> IOResult<usize> {
+        File::read(self, buf).map_err(|_| IOError::UNKNOWN)
     }
 }

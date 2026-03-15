@@ -1,0 +1,8 @@
+[package]
+name = "elf_parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mos_lib = { path = "../../mos_lib" }
+goblin = { version = "0.10.5", default-features = false }

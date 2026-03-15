@@ -2,14 +2,13 @@
 #![no_main]
 
 use core::mem::MaybeUninit;
-use user_space::{getdents, init_heap, open, println};
-use vfs::{OpenFlags, UserDirEntry};
+use user_lib::fs::{OpenFlags, UserDirEntry};
+use user_lib::{getdents, open, println};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
-    init_heap();
     let current_dir =
-        open("./", OpenFlags::READ | OpenFlags::DIRECTORY).expect("should open directory");
+        open(c"./", OpenFlags::READ | OpenFlags::DIRECTORY).expect("should open directory");
     let mut buffer = [const { MaybeUninit::<UserDirEntry>::uninit() }; 32];
     unsafe {
         let ptr = buffer.as_mut_ptr().cast::<UserDirEntry>();

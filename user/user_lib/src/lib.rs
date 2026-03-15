@@ -2,25 +2,95 @@
 #![no_main]
 #![feature(linkage)]
 
+pub mod console;
+mod os;
+mod syscall;
+
 use crate::syscall::{
     sys_brk, sys_chdir, sys_close, sys_execve, sys_exit, sys_fork, sys_getdents, sys_mmap,
     sys_munmap, sys_open, sys_rand, sys_read, sys_sleep, sys_wait, sys_write, sys_yield,
 };
 use core::arch::global_asm;
 use core::ffi::{CStr, c_char};
-use linked_list_allocator::LockedHeap;
 use mos_lib::fs::FileDesc;
 use mos_lib::memory::{MemoryMapFlags, MemoryProtFlags};
-use vfs::{OpenFlags, UserDirEntry};
+use vfs_user::{OpenFlags, UserDirEntry};
 
-pub mod console;
-mod syscall;
+#[cfg(feature = "alloc")]
+use linked_list_allocator::LockedHeap;
 
-#[global_allocator]
-static HEAP: LockedHeap = LockedHeap::empty();
+pub use mos_lib as mos;
+pub use vfs_user as fs;
+
+/// Sometime if the user_lib is a pure lib,
+/// it needs to include this symbol to make sure use the same user panic handler
+pub const __LINK_MARK: () = ();
+
+#[linkage = "weak"]
+#[unsafe(no_mangle)]
+fn main(argc: usize, argv: Args, envp: Args) -> i32 {
+    panic!("no main")
+}
+
+extern "C" fn runtime(argc: usize, argv: Args, envp: Args) -> ! {
+    #[cfg(feature = "alloc")]
+    init_heap();
+    exit(main(argc, argv, envp));
+}
+
+global_asm!(
+    "
+.global _start
+_start:
+    // argc
+    mov rdi, [rsp + 0x00]
+
+    // argv
+    lea rsi, [rsp + 0x08]
+
+    // envp
+    mov rdx, rdi
+    shl rdx, 3
+    add rdx, rsi
+    add rdx, 8
+
+    // abi & align down
+    xor rbp, rbp
+    and rsp, -16
+    call {main}
+    ",
+    main = sym runtime,
+);
+
+#[panic_handler]
+pub fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
+    #[cfg(feature = "alloc")]
+    {
+        let err = panic_info.message();
+        if let Some(location) = panic_info.location() {
+            println!(
+                "Panicked at {}:{}, {}",
+                location.file(),
+                location.line(),
+                err
+            );
+        } else {
+            println!("Panicked: {}", err);
+        }
+    }
+    exit(-1)
+}
 
 pub type Args = *const *const c_char;
 
+pub const STDOUT: FileDesc = FileDesc(1);
+pub const STDIN: FileDesc = FileDesc(0);
+
+#[cfg(feature = "alloc")]
+#[global_allocator]
+static HEAP: LockedHeap = LockedHeap::empty();
+
+#[cfg(feature = "alloc")]
 pub fn init_heap() {
     let old_brk = brk(0);
     unsafe {
@@ -45,59 +115,6 @@ pub fn init_heap() {
         // println!("new_brk: {:x?}, old_brk: {:x?}", new_brk, old_brk);
     }
 }
-
-#[linkage = "weak"]
-#[unsafe(no_mangle)]
-fn main() -> i32 {
-    panic!("no main")
-}
-
-global_asm!(
-    "
-.global _start
-_start:
-    // argc
-    mov rdi, [rsp + 0x00]
-
-    // argv
-    lea rsi, [rsp + 0x08]
-
-    // envp
-    mov rdx, rdi
-    shl rdx, 3
-    add rdx, rsi
-    add rdx, 8
-
-    // abi & align down
-    xor rbp, rbp
-    and rsp, -16
-    call {main}
-    mov rdi, rax
-    mov rax, {exit_syscall_no}
-    syscall
-    ",
-    main = sym main,
-    exit_syscall_no = const 60
-);
-
-#[panic_handler]
-fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
-    let err = panic_info.message();
-    if let Some(location) = panic_info.location() {
-        println!(
-            "Panicked at {}:{}, {}",
-            location.file(),
-            location.line(),
-            err
-        );
-    } else {
-        println!("Panicked: {}", err);
-    }
-    exit(-1)
-}
-
-pub const STDOUT: FileDesc = FileDesc(1);
-pub const STDIN: FileDesc = FileDesc(0);
 
 pub fn write(fd: FileDesc, buffer: &[u8]) -> u64 {
     sys_write(fd.0 as _, buffer)
@@ -163,9 +180,9 @@ pub fn brk(addr: u64) -> u64 {
 pub fn waitpid(pid: u64) -> i32 {
     sys_wait(pid) as _
 }
-pub fn open(path: &str, flags: OpenFlags) -> Option<FileDesc> {
-    let fd = sys_open(path, flags.bits());
-    if (fd as isize) > 0 {
+pub fn open(path: &CStr, flags: OpenFlags) -> Option<FileDesc> {
+    let fd = sys_open(path.as_ptr(), flags.bits());
+    if fd > 0 {
         Some(FileDesc(fd as _))
     } else {
         None

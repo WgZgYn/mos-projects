@@ -34,6 +34,10 @@
       <sourceFolder url="file://$MODULE_DIR$/user/user_space/test_gp/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/user/user_space/test_rand/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/user/user_space/test_syscall/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/data_public/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/string_num/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/user/user_lib/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vfs_user/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user/target" />

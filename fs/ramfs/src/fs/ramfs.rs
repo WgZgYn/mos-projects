@@ -4,8 +4,8 @@ use crate::fs::{DirItem, Error, FileType, RamFs, has_same_name};
 use crate::index::{FrameAccess, FrameIndex, FramePtr, InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use crate::inode::IndexNode;
 use core::ops::{Index, IndexMut};
-use kernel_utils::{Mutex, info, trace};
-
+use log::{info, trace};
+use spin::Mutex;
 static CURRENT_DIR: Mutex<InodeIndex> = Mutex::new(RAMFS_ROOT_INODE_INDEX);
 
 impl RamFs {

@@ -1,0 +1,8 @@
+[package]
+name = "vfs_user"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitflags = "2.11.0"
+string_num = { path = "../libs/string_num" }

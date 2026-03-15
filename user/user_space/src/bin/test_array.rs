@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_space::{STDOUT, println, rand, write};
+use user_lib::{STDOUT, println, rand, write};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {

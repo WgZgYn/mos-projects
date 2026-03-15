@@ -1,7 +1,7 @@
-use std::env::current_dir;
 use clap::Parser;
 use log::LevelFilter;
 use ramfs_builder::build_ramfs;
+use std::env::current_dir;
 
 #[derive(Parser, Debug)]
 pub struct Cli {

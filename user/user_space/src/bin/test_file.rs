@@ -1,14 +1,13 @@
 #![no_std]
 #![no_main]
 
-use user_space::{chdir, close, fork, init_heap, open, println, read, waitpid, write};
-use vfs::OpenFlags;
+use user_lib::fs::OpenFlags;
+use user_lib::{chdir, close, fork, open, println, read, waitpid, write};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
-    init_heap();
     println!("test_file start");
-    let elf = open("./test_write", OpenFlags::READ).expect("should open test_write");
+    let elf = open(c"./test_write", OpenFlags::READ).expect("should open test_write");
     println!("test_file open success");
     let mut buffer = [0; 20];
     let n = read(elf, &mut buffer);
@@ -17,7 +16,7 @@ fn main() -> i32 {
     println!("----------------------");
 
     let txt = open(
-        "./log.txt",
+        c"./log.txt",
         OpenFlags::READ_WRITE | OpenFlags::CREATE | OpenFlags::APPEND,
     )
     .expect("should open log.txt");
@@ -31,7 +30,7 @@ fn main() -> i32 {
         println!("[parent] waitpid");
         waitpid(child);
         println!("[parent] wake");
-        let f = open("./log.txt", OpenFlags::READ).expect("should open log.txt");
+        let f = open(c"./log.txt", OpenFlags::READ).expect("should open log.txt");
         let mut buffer = [0; 128];
         println!("[parent] read file f");
         let n = read(f, &mut buffer);
@@ -46,12 +45,12 @@ fn main() -> i32 {
 
 fn test_dir() {
     let new_dir = open(
-        "./document",
+        c"./document",
         OpenFlags::READ | OpenFlags::DIRECTORY | OpenFlags::CREATE,
     )
     .expect("should open document");
     chdir(new_dir);
-    let new_file = open("./data.bin", OpenFlags::READ_WRITE | OpenFlags::CREATE)
+    let new_file = open(c"./data.bin", OpenFlags::READ_WRITE | OpenFlags::CREATE)
         .expect("should open data.bin");
     write(new_file, b"hello world");
     close(new_file);

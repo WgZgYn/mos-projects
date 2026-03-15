@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_space::{println, rand, sleep};
+use user_lib::{println, rand, sleep};
 
 const A: f64 = 123.456;
 const B: f64 = 456.789;

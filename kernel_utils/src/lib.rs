@@ -1,14 +1,16 @@
 #![no_std]
+
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
-pub use bitflags::bitflags;
-pub use bitmap::BitMap;
-use core::ops::{Deref, DerefMut};
+
+#[cfg(feature = "alloc")]
 use core::sync::atomic::{AtomicU64, Ordering};
-pub use log::{debug, error, info, trace, warn};
-pub use num_enum::FromPrimitive;
-pub use spin::*;
+
+use core::ops::{Deref, DerefMut};
+use spin::Mutex;
 
 pub const fn align_up(addr: u64, align: u64) -> u64 {
     (addr + align - 1) & !(align - 1)
@@ -37,118 +39,14 @@ impl<T> DerefMut for PageAligned<T> {
         &mut self.0
     }
 }
-#[macro_export]
-macro_rules! string_enum {
-    (
-        $($(#[$meta:meta])*
-        $vis:vis enum $name:ident {
-            $($variant:ident $(= $val:expr)?),* $(,)?
-        })*
-    ) => {
-        $($(#[$meta])*
-        $vis enum $name {
-            $($variant $(= $val)?),*
-        }
 
-        impl $name {
-            pub const fn as_str(&self) -> &'static str {
-                match self {
-                    $(Self::$variant => stringify!($variant$(($val))?),)*
-                }
-            }
-
-            pub fn from_str(s: &str) -> Option<Self> {
-                match s {
-                    $(stringify!($variant) => Some(Self::$variant),)*
-                    _ => None,
-                }
-            }
-
-            pub const fn all_variants() -> &'static [Self] {
-                &[$(Self::$variant),*]
-            }
-
-            pub fn iter() -> impl Iterator<Item = Self> {
-                [$(Self::$variant),*].into_iter()
-            }
-        }
-
-        impl core::fmt::Display for $name {
-            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-                write!(f, "{}", self.as_str())
-            }
-        }
-
-        impl core::str::FromStr for $name {
-            type Err = &'static str;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                Self::from_str(s).ok_or("Invalid variant")
-            }
-        })*
-    };
-}
-
-//
-#[macro_export]
-macro_rules! struct_field_public {
-    (
-        $($(#[$struct_meta:meta])*
-        $vis:vis struct $name:ident $(<
-            $($generic:ident $(: $bound:tt $(+ $more_bounds:tt)* )? ),* $(,)?
-        >)? {
-            $(
-                $(#[$field_meta:meta])*
-                $_vis:vis $field:ident: $ty:ty
-            ),* $(,)?
-        })*
-    ) => {
-        $($(#[$struct_meta])*
-        $vis struct $name $(<
-            $($generic $(: $bound $(+ $more_bounds)* )? ),*
-        >)? {
-            $(
-                $(#[$field_meta])*
-                pub $field: $ty
-            ),*
-        })*
-    };
-}
-
-#[macro_export]
-macro_rules! tuple_field_public {
-    (
-        $(#[$struct_meta:meta])*
-        $vis:vis struct $name:ident $(<
-            $($generic:ident $(: $bound:tt $(+ $more_bounds:tt)* )? ),* $(,)?
-        >)? (
-            $(
-                $(#[$field_meta:meta])*
-                $ty:ty
-            ),* $(,)?);
-    ) => {
-        $(#[$struct_meta])*
-        $vis struct $name $(<
-            $($generic $(: $bound $(+ $more_bounds)* )? ),*
-        >)? ($($($field_meta)* pub $ty,)*);
-    };
-}
-
-#[macro_export]
-macro_rules! func_public {
-    () => {};
-}
-
-#[macro_export]
-macro_rules! impl_func_public {
-    () => {};
-}
-
+#[cfg(feature = "alloc")]
 pub struct IDAllocator {
     next: AtomicU64,
     reuse: Mutex<Vec<u64>>,
 }
 
+#[cfg(feature = "alloc")]
 impl IDAllocator {
     pub const fn new(start: u64) -> Self {
         Self {
@@ -238,8 +136,6 @@ impl<T, const N: usize> Array<T, N> {
         self.len == 0
     }
 }
-
-
 
 pub struct Defer<F: FnOnce()> {
     f: Option<F>,

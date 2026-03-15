@@ -1,11 +1,10 @@
 #![no_std]
 #![no_main]
 
-use user_space::{execve, fork, init_heap, println, waitpid};
+use user_lib::{execve, fork, println, waitpid};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
-    init_heap();
     println!("[init]");
     let pid = fork();
     if pid == 0 {

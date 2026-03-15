@@ -388,6 +388,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "data_public"
+version = "0.1.0"
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -806,6 +810,7 @@ dependencies = [
  "cc",
  "conquer-once 0.4.0",
  "crossbeam-queue",
+ "data_public",
  "futures-util",
  "goblin",
  "intrusive-collections",
@@ -851,10 +856,9 @@ name = "mos_lib"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.11.0",
- "kernel_utils",
  "log",
  "num_enum",
- "vfs",
+ "string_num",
 ]
 
 [[package]]
@@ -1041,8 +1045,12 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 name = "ramfs"
 version = "0.1.0"
 dependencies = [
+ "bitmap",
  "conquer-once 0.4.0",
  "kernel_utils",
+ "log",
+ "spin 0.10.0",
+ "string_num",
  "vfs",
 ]
 
@@ -1326,6 +1334,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "string_num"
+version = "0.1.0"
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1484,14 +1496,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "user_lib"
+version = "0.1.0"
+dependencies = [
+ "linked_list_allocator",
+ "mos_lib",
+ "vfs_user",
+]
+
+[[package]]
 name = "user_space"
 version = "0.1.0"
 dependencies = [
  "green_thread",
  "libm",
- "linked_list_allocator",
- "mos_lib",
- "vfs",
+ "user_lib",
 ]
 
 [[package]]
@@ -1527,7 +1546,18 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vfs"
 version = "0.1.0"
 dependencies = [
- "kernel_utils",
+ "log",
+ "mos_lib",
+ "spin 0.10.0",
+ "vfs_user",
+]
+
+[[package]]
+name = "vfs_user"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.11.0",
+ "string_num",
 ]
 
 [[package]]

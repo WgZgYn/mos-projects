@@ -4,11 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+string_num = { path = "../libs/string_num" }
 num_enum = { version = "0.7.5", default-features = false }
 bitflags = "2.11.0"
 log = "0.4.29"
-vfs = { path = "../vfs" }
-kernel_utils = { path = "../kernel_utils" }
 
 
 [features]

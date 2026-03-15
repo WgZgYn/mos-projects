@@ -1,7 +1,6 @@
 use kernel_utils::PageAligned;
 use log::info;
 use ramfs::RamFsManager;
-use ramfs::prelude::SuperBlock;
 use ramfs::vfs::RamFsSuperBlock;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -9,7 +8,10 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use vfs::{FileType, Inode};
+use vfs::{
+    FileType,
+    traits::{Inode, SuperBlock},
+};
 
 pub struct RamfsBuilder {
     _metadata: Box<PageAligned<[u8; 1024 * 1024 * 4]>>,

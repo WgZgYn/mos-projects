@@ -6,7 +6,7 @@ use crate::fs_manager::RamFsManager;
 use crate::index::InodeIndex;
 use crate::inode::IndexNode;
 use alloc::vec::Vec;
-use kernel_utils::error;
+use log::error;
 
 pub struct FsTransaction<'a, 'b> {
     header: &'a RamFsManager<'b>,

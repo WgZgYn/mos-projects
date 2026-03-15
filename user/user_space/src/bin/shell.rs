@@ -5,16 +5,13 @@ extern crate alloc;
 use alloc::ffi::CString;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::ffi::{CStr, c_char};
-use mos_lib::ffi::NullEndPointerArray;
-use user_space::{
-    chdir, exec, execve, exit, fork, get_char, init_heap, open, print, println, waitpid,
-};
-use vfs::OpenFlags;
+use core::ffi::CStr;
+use user_lib::fs::OpenFlags;
+use user_lib::mos::ffi::NullEndPointerArray;
+use user_lib::{Args, chdir, exec, execve, exit, fork, get_char, open, print, println, waitpid};
 
 #[unsafe(no_mangle)]
-fn main(argc: usize, argv: *const *const c_char, envp: *const *const c_char) -> i32 {
-    init_heap();
+fn main(argc: usize, argv: Args, envp: Args) -> i32 {
     println!("MOS Shell");
 
     unsafe {
@@ -88,10 +85,16 @@ fn handler_exec(path: &str) {
 
 fn handler_cd(path: &str) {
     if let Some(("cd", path)) = path.split_once(|s: char| s.is_whitespace()) {
-        let Some(dir) = open(path, OpenFlags::READ | OpenFlags::DIRECTORY) else {
+        let Ok(s) = CString::new(path) else {
+            println!("Failed to convert path to CString");
+            return;
+        };
+
+        let Some(dir) = open(s.as_ref(), OpenFlags::READ | OpenFlags::DIRECTORY) else {
             println!("Failed to open directory");
             return;
         };
+
         println!("try change work dir");
         let ok = chdir(dir);
         if ok == u64::MAX {
@@ -104,7 +107,7 @@ fn handler_cd(path: &str) {
 
 fn handler_cat(line: &str) {
     let mut split = line.trim().split_whitespace();
-    let Some(cat) = split.next() else {
+    let Some(cat @ "cat") = split.next() else {
         println!("handler error");
         return;
     };
@@ -129,11 +132,6 @@ fn handler_cat(line: &str) {
     }
     buffer.iter().for_each(|s| args.push(s.as_ref().as_ptr()));
     args.push(core::ptr::null());
-
-    let Some(f) = open(cat, OpenFlags::CREATE | OpenFlags::READ) else {
-        println!("no such file or directory");
-        return;
-    };
     let pid = fork();
     if pid == 0 {
         if let Err(e) = execve(c"/cat".as_ref(), &args, &[core::ptr::null()]) {

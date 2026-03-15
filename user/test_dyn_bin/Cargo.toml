@@ -3,3 +3,6 @@ name = "test_dyn_bin"
 version = "0.1.0"
 edition = "2024"
 build = "build.rs"
+
+[dependencies]
+user_lib = { path = "../user_lib" }

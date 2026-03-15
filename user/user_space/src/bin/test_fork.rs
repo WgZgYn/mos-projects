@@ -3,13 +3,11 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use user_space::{fork, init_heap, println};
+use user_lib::{fork, println};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
     println!("===== cow_stress_test start =====");
-
-    init_heap();
 
     const PAGE: usize = 4096;
     const NPAGES: usize = 4;
