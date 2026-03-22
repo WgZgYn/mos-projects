@@ -7,20 +7,21 @@ mod os;
 mod syscall;
 
 use crate::syscall::{
-    sys_brk, sys_chdir, sys_close, sys_execve, sys_exit, sys_fork, sys_getdents, sys_mmap,
-    sys_munmap, sys_open, sys_rand, sys_read, sys_sleep, sys_wait, sys_write, sys_yield,
+    sys_brk, sys_chdir, sys_close, sys_execve, sys_exit, sys_fork, sys_getdents, sys_mkfifo,
+    sys_mmap, sys_munmap, sys_open, sys_pipe, sys_rand, sys_read, sys_sleep, sys_wait, sys_write,
+    sys_yield,
 };
 use core::arch::global_asm;
 use core::ffi::{CStr, c_char};
 use mos_lib::fs::FileDesc;
 use mos_lib::memory::{MemoryMapFlags, MemoryProtFlags};
-use vfs_user::{OpenFlags, UserDirEntry};
+use vfs_common::{OpenFlags, UserDirEntry, VfsResult, isize_to_vfs_result};
 
 #[cfg(feature = "alloc")]
 use linked_list_allocator::LockedHeap;
 
 pub use mos_lib as mos;
-pub use vfs_user as fs;
+pub use vfs_common as fs;
 
 /// Sometime if the user_lib is a pure lib,
 /// it needs to include this symbol to make sure use the same user panic handler
@@ -116,11 +117,11 @@ pub fn init_heap() {
     }
 }
 
-pub fn write(fd: FileDesc, buffer: &[u8]) -> u64 {
-    sys_write(fd.0 as _, buffer)
+pub fn write(fd: FileDesc, buffer: &[u8]) -> VfsResult<usize> {
+    isize_to_vfs_result(sys_write(fd.0 as _, buffer))
 }
-pub fn read(fd: FileDesc, buffer: &mut [u8]) -> u64 {
-    sys_read(fd.0 as _, buffer)
+pub fn read(fd: FileDesc, buffer: &mut [u8]) -> VfsResult<usize> {
+    isize_to_vfs_result(sys_read(fd.0 as _, buffer))
 }
 
 pub fn get_char() -> u8 {
@@ -129,7 +130,7 @@ pub fn get_char() -> u8 {
     c
 }
 
-pub fn write_stdout_number(mut v: usize) -> u64 {
+pub fn write_stdout_number(mut v: usize) -> VfsResult<usize> {
     let mut buffer = [b'\0'; 32];
     if v == 0 {
         return write(STDOUT, b"0");
@@ -217,4 +218,24 @@ pub fn mmap(
 
 pub fn munmap(addr: u64, len: u64) -> u64 {
     sys_munmap(addr, len)
+}
+
+pub struct Pipe {
+    pub pread: FileDesc,
+    pub pwrite: FileDesc,
+}
+
+pub fn pipe() -> Option<Pipe> {
+    let mut fd = [-1, -1];
+    if sys_pipe(&mut fd) == 0 {
+        return Some(Pipe {
+            pread: FileDesc(fd[0] as _),
+            pwrite: FileDesc(fd[1] as _),
+        });
+    }
+    None
+}
+
+pub fn mkfifo(path: &CStr) -> VfsResult<()> {
+    isize_to_vfs_result(sys_mkfifo(path)).map(|_| ())
 }

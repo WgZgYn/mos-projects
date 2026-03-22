@@ -21,7 +21,7 @@ pub fn print_array(array: &[u8]) {
     let mut buffer = [0; 128];
     let n = write_array(&mut buffer, array);
     buffer[n] = b'\n';
-    write(STDOUT, &buffer[..=n]);
+    let _ = write(STDOUT, &buffer[..=n]);
 }
 
 pub fn write_array(buffer: &mut [u8], array: &[u8]) -> usize {

@@ -4,9 +4,9 @@ use crate::fs::{DirItem, FileType};
 use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
-use log::trace;
-use vfs::traits::*;
-use vfs::{DirEntry, MountFlags, VfsError, VfsResult};
+use log::{info, trace};
+use vfs_common::{MountFlags, VfsError, VfsResult};
+use vfs_traits::{DirEntry, DirOps, FileOps, Inode, SuperBlock, VFS};
 
 impl VFS for RamFsManager<'static> {
     fn name(&self) -> Option<&str> {
@@ -81,14 +81,7 @@ impl FileOps for FsNode {
     }
 }
 
-impl InodeOps for FsNode {
-    fn parent(&self) -> Option<Arc<dyn Inode>> {
-        Some(Arc::new(FsNode {
-            fs: self.fs.clone(),
-            idx: self.fs.lock()[self.idx].parent,
-        }))
-    }
-
+impl DirOps for FsNode {
     fn lookup(&self, name: &str) -> Result<Arc<dyn Inode>, VfsError> {
         self.fs
             .lock()
@@ -116,13 +109,15 @@ impl InodeOps for FsNode {
             .ok_or(VfsError::NotFound)
     }
 
-    fn create(self: Arc<Self>, name: &str, file_type: vfs::FileType) -> VfsResult<Arc<dyn Inode>> {
+    fn create(&self, name: &str, file_type: vfs_common::FileType) -> VfsResult<Arc<dyn Inode>> {
         let parent_inode_idx = self.idx;
-        let file_type = if file_type == vfs::FileType::Directory {
-            FileType::Directory
-        } else {
-            FileType::File
+        let file_type = match file_type {
+            vfs_common::FileType::Regular => FileType::File,
+            vfs_common::FileType::Directory => FileType::Directory,
+            vfs_common::FileType::Fifo => FileType::Fifo,
+            _ => return Err(VfsError::NotSupported),
         };
+        info!("[RAMFS] create file {:?}", file_type);
 
         let mut fs = self.fs.lock();
 
@@ -144,10 +139,7 @@ impl InodeOps for FsNode {
         }))
     }
 
-    fn readdir(&self, offset: usize) -> Result<Option<DirEntry>, VfsError> {
-        if self.file_type() != vfs::FileType::Directory {
-            return Err(VfsError::NotDir);
-        }
+    fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>> {
         let node = Arc::new(FsNode {
             fs: self.fs.clone(),
             idx: self.idx,
@@ -166,13 +158,17 @@ impl InodeOps for FsNode {
             unsafe {
                 let item: DirItem = core::mem::transmute(item);
                 trace!("dir item: {:?}", item.name());
+
+                let ft = match item.file_type() {
+                    FileType::File => vfs_common::FileType::Regular,
+                    FileType::Directory => vfs_common::FileType::Directory,
+                    FileType::Fifo => vfs_common::FileType::Fifo,
+                    _ => return Err(VfsError::NotSupported),
+                };
+
                 return Ok(Some(DirEntry::new(
                     item.name().to_owned(),
-                    if item.file_type() == FileType::Directory {
-                        vfs::FileType::Directory
-                    } else {
-                        vfs::FileType::Regular
-                    },
+                    ft,
                     Arc::new(FsNode {
                         fs: self.fs.clone(),
                         idx: item.index(),
@@ -195,12 +191,34 @@ impl Inode for FsNode {
         let inode = &fs[index];
         inode.size
     }
-
-    fn file_type(&self) -> vfs::FileType {
-        if self.fs.lock()[self.idx].file_type == FileType::Directory {
-            vfs::FileType::Directory
+    fn file_type(&self) -> vfs_common::FileType {
+        let ft = self.fs.lock()[self.idx].file_type;
+        match ft {
+            FileType::File => vfs_common::FileType::Regular,
+            FileType::Directory => vfs_common::FileType::Directory,
+            FileType::Fifo => vfs_common::FileType::Fifo,
+            _ => unimplemented!(),
+        }
+    }
+    fn parent(&self) -> VfsResult<Option<Arc<dyn Inode>>> {
+        let parent = self.fs.lock()[self.idx].parent;
+        if parent == self.idx {
+            return Ok(None);
+        }
+        Ok(Some(Arc::new(FsNode {
+            fs: self.fs.clone(),
+            idx: parent,
+        })))
+    }
+    fn as_file_ops(&self) -> VfsResult<&dyn FileOps> {
+        Ok(self)
+    }
+    fn as_dir_ops(&self) -> VfsResult<&dyn DirOps> {
+        let inode = &self.fs.lock()[self.idx];
+        if inode.file_type == FileType::Directory {
+            Ok(self)
         } else {
-            vfs::FileType::Regular
+            Err(VfsError::NotDir)
         }
     }
 }

@@ -52,6 +52,7 @@ string_enum! {
     pub enum FileType {
         File = 0,
         Directory,
+        Fifo,
         HardLink,
         SymLink,
     }

@@ -38,6 +38,7 @@ impl RamFs {
         if inode.file_type != FileType::Directory {
             return Err(Error::FileTypeIllegal);
         }
+        // TODO: enlarge dir entry limit
         match inode.page_1[0].to_option() {
             None => Ok(&[]),
             Some(frame_idx) => Ok(self[frame_idx]

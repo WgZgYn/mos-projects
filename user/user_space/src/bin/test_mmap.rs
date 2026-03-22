@@ -11,7 +11,7 @@ fn main() -> i32 {
         OpenFlags::READ_WRITE | OpenFlags::CREATE | OpenFlags::APPEND,
     )
     .expect("should open or create mmap.txt");
-    write(f, b"hello world!\n");
+    write(f, b"hello world!\n").expect("should write file");
 
     let fmap = mmap(
         0x4234_0000,

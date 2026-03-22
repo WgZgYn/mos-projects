@@ -14,8 +14,11 @@ pub enum Syscall {
 
     // Memory
     Mmap = 9,
-    Munmap = 10,
+    Munmap = 11,
     Brk = 12,
+
+    Pipe = 22,
+
 
     // schedule
     Yield = 24,
@@ -33,6 +36,8 @@ pub enum Syscall {
     GetCWD = 79,
     ChDir = 80,
 
+    Mkdir = 83,
+    Mkfifo = 132,
     #[num_enum(default)]
     Unknown,
 }

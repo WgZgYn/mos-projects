@@ -19,7 +19,7 @@ user = { path = "user" }
 
 
 [workspace]
-members = ["libs/allocators", "mos", "libs/vga", "libs/green_thread", "libs/bitmap", "libs/optional", "libs/psf", "libs/buddy_allocator", "libs/ppm", "ramfs_builder", "fs/ramfs", "kernel_utils", "vfs", "user/user_space", "libs/bs_string", "libs/collections", "libs/note", "fs/mem_fs", "ktests", "mos_lib", "libs/elf_parser", "libs/string_num", "libs/data_public"]
+members = ["libs/allocators", "mos", "libs/vga", "libs/green_thread", "libs/bitmap", "libs/optional", "libs/psf", "libs/buddy_allocator", "libs/ppm", "ramfs_builder", "fs/ramfs", "kernel_utils", "user/user_space", "libs/bs_string", "libs/collections", "libs/note", "fs/mem_fs", "ktests", "mos_lib", "libs/elf_parser", "libs/string_num", "libs/data_public", "vfs_traits"]
 exclude = ["user/test_dyn", "user/test_dyn_bin", "user"]
 
 [features]

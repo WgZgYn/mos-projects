@@ -5,10 +5,10 @@ edition = "2024"
 
 [dependencies]
 kernel_utils = { path = "../../kernel_utils" }
-vfs = { path = "../../vfs" }
+vfs_traits = { path = "../../vfs_traits" }
+vfs_common = { path = "../../vfs_common" }
 bitmap = { path = "../../libs/bitmap" }
 string_num = { path = "../../libs/string_num" }
-conquer-once = { version = "0.4.0", default-features = false }
 spin = "0.10.0"
 log = "0.4.29"
 

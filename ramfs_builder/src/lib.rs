@@ -8,10 +8,8 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use vfs::{
-    FileType,
-    traits::{Inode, SuperBlock},
-};
+use vfs_common::FileType;
+use vfs_traits::{Inode, SuperBlock};
 
 pub struct RamfsBuilder {
     _metadata: Box<PageAligned<[u8; 1024 * 1024 * 4]>>,
@@ -55,10 +53,14 @@ impl RamfsBuilder {
         f.read_to_end(&mut buffer)?;
         let root = self.root();
         let node = root
-            .create(name, vfs::FileType::Regular)
+            .as_dir_ops()
+            .map_err(|e| e.as_str())?
+            .create(name, FileType::Regular)
             .map_err(|_| "Ramfs create failed")?;
 
-        node.write_at(0, buffer.as_slice())
+        node.as_file_ops()
+            .map_err(|e| e.as_str())?
+            .write_at(0, buffer.as_slice())
             .map_err(|_| "Ramfs file write failed")?;
         Ok(())
     }
@@ -102,17 +104,25 @@ fn build_helper(
                 let mut os_file = File::open(entry.path())?;
                 let fs_file = fs_dir
                     .clone()
+                    .as_dir_ops()
+                    .map_err(|e| e.as_str())?
                     .create(name, FileType::Regular)
                     .map_err(|e| e.as_str())?;
                 let mut buffer = Vec::new();
                 os_file.read_to_end(&mut buffer)?;
-                fs_file.write_at(0, &buffer).map_err(|e| e.as_str())?;
+                fs_file
+                    .as_file_ops()
+                    .map_err(|e| e.as_str())?
+                    .write_at(0, &buffer)
+                    .map_err(|e| e.as_str())?;
                 info!("insert file {}:{:?} success", name, FileType::Regular);
             }
             (Some(name), Ok(ft)) if ft.is_dir() => {
                 let next_os_dir = os_path.join(name);
                 let fs_dir = fs_dir
                     .clone()
+                    .as_dir_ops()
+                    .map_err(|e| e.as_str())?
                     .create(name, FileType::Directory)
                     .map_err(|e| e.as_str())?;
                 info!("insert file {}:{:?} success", name, FileType::Directory);

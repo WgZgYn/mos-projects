@@ -9,7 +9,7 @@ use core::ops::Deref;
 use kernel_utils::{align_up, is_aligned};
 use log::{info, warn};
 use spin::Mutex;
-use vfs::traits::Inode;
+use vfs_traits::Inode;
 
 pub struct RamFsManager<'a> {
     pub access: Mutex<&'a mut RamFs>,

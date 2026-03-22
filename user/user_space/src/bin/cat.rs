@@ -18,6 +18,12 @@ fn main(argc: usize, argv: Args) -> i32 {
     let program_name = &args[0];
     let filepath = &args[1];
     let length = &args[2];
+    let str_fmt = if let Some(a) = args.get(3) {
+        a == c"-s"
+    } else {
+        false
+    };
+
     let n = length
         .as_ref()
         .to_str()
@@ -34,19 +40,26 @@ fn main(argc: usize, argv: Args) -> i32 {
     };
 
     let mut buffer = vec![0; n];
-    let n = read(fd, &mut buffer);
-    if n != u64::MAX {
-        let chunks = buffer[..n as usize].chunks(20);
+    let Ok(n) = read(fd, &mut buffer) else {
+        println!("read {:?} failed", filepath);
+        return -1;
+    };
+
+    if str_fmt {
+        let Ok(s) = core::str::from_utf8(&buffer[..n]) else {
+            println!("not valid utf-8");
+            return -1;
+        };
+        println!("{}", s);
+    } else {
+        let chunks = buffer[..n].chunks(20);
         for chunk in chunks {
             for c in chunk {
                 print!("{:02x} ", c);
             }
             println!();
         }
-        println!("read {} bytes from {:?}", n, filepath);
-    } else {
-        println!("read error");
-        return -1;
     }
+    println!("read {} bytes from {:?}", n, filepath);
     0
 }

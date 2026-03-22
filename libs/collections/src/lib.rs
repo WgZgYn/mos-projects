@@ -1,6 +1,6 @@
 #![no_std]
 
-mod array;
+pub mod array;
 pub mod tree;
 
 #[macro_export]

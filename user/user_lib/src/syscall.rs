@@ -1,8 +1,8 @@
 use core::arch::asm;
-use core::ffi::c_char;
+use core::ffi::{CStr, c_char};
 
 use mos_lib::syscall::Syscall;
-use vfs_user::UserDirEntry;
+use vfs_common::UserDirEntry;
 
 fn syscall(no: u64, args: [u64; 3]) -> u64 {
     let ret: u64;
@@ -37,19 +37,19 @@ fn syscall_v2(no: u64, args: [u64; 6]) -> u64 {
     ret
 }
 
-pub fn sys_read(fd: u64, buffer: &mut [u8]) -> u64 {
+pub fn sys_read(fd: u64, buffer: &mut [u8]) -> isize {
     syscall(
         Syscall::Read as _,
         [fd, buffer.as_mut_ptr() as _, buffer.len() as u64],
-    )
+    ) as _
 }
-pub fn sys_write(fd: u64, buffer: &[u8]) -> u64 {
+pub fn sys_write(fd: u64, buffer: &[u8]) -> isize {
     syscall(
         Syscall::Write as _,
         [fd, buffer.as_ptr() as _, buffer.len() as u64],
-    )
+    ) as _
 }
-pub fn sys_open(path: *const c_char, flags: u32) -> i64 {
+pub fn sys_open(path: *const c_char, flags: u32) -> isize {
     syscall(Syscall::Open as _, [path as _, flags as u64, 0]) as _
 }
 pub fn sys_close(fd: u64) -> u64 {
@@ -104,4 +104,10 @@ pub fn sys_mmap(start: u64, len: u64, prot: u32, flags: u32, fd: i32, offset: u6
 
 pub fn sys_munmap(start: u64, len: u64) -> u64 {
     syscall(Syscall::Munmap as _, [start, len, 0])
+}
+pub fn sys_pipe(addr: &mut [i32; 2]) -> i32 {
+    syscall(Syscall::Pipe as _, [addr.as_mut_ptr() as _, 0, 0]) as _
+}
+pub fn sys_mkfifo(path: &CStr) -> isize {
+    syscall(Syscall::Mkfifo as _, [path.as_ptr() as _, 0, 0]) as _
 }

@@ -1,0 +1,9 @@
+[package]
+name = "vfs_common"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitflags = "2.11.0"
+num_enum = { version = "0.7.6", default-features = false }
+string_num = { path = "../libs/string_num" }

@@ -5,12 +5,12 @@ macro_rules! string_enum {
     (
         $($(#[$meta:meta])*
         $vis:vis enum $name:ident {
-            $($variant:ident $(= $val:expr)?),* $(,)?
+            $($(#[$field_meta:meta])* $variant:ident $(= $val:expr)?),* $(,)?
         })*
     ) => {
         $($(#[$meta])*
         $vis enum $name {
-            $($variant $(= $val)?),*
+            $($(#[$field_meta])* $variant $(= $val)?),*
         }
 
         impl $name {

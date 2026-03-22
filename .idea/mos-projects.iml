@@ -37,7 +37,8 @@
       <sourceFolder url="file://$MODULE_DIR$/libs/data_public/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/libs/string_num/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/user/user_lib/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/vfs_user/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vfs_common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/vfs_traits/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user/target" />
