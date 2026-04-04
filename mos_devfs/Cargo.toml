@@ -1,0 +1,12 @@
+[package]
+name = "mos_devfs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lazy_static = "1.5.0"
+mos_arch = { path = "../mos_arch" }
+mos_vfs = { path = "../mos_vfs" }
+mos_driver = { path = "../mos_driver" }
+vfs_traits = { path = "../vfs_traits" }
+vfs_common = { path = "../vfs_common" }

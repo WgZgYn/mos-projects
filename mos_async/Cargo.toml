@@ -1,0 +1,12 @@
+[package]
+name = "mos_async"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = "0.4.29"
+conquer-once = { version = "0.4.0", default-features = false }
+crossbeam-queue = { version = "0.3.12", features = ["alloc"], default-features = false }
+futures-util = { version = "0.3.31", default-features = false, features = ["alloc"] }
+mos_arch = { path = "../mos_arch" }
+mos_driver = { path = "../mos_driver" }
