@@ -16,7 +16,7 @@ impl<T: AsRef<str>> AsPath for T {
     }
 }
 
-pub fn str_as_path(path: &str) -> impl Iterator<Item = Component<'_>>  {
+pub fn str_as_path(path: &str) -> impl Iterator<Item = Component<'_>> {
     let path = path.trim();
     let mut start_with_root = None;
 

@@ -33,7 +33,6 @@ fn main(argc: usize, argv: Args, envp: Args) -> i32 {
         print!("{}", c as char);
         match c {
             b'\n' => {
-                print!(">> ");
                 match line.as_str() {
                     s if s.starts_with("./") || s.starts_with("exec") => handler_exec(s),
                     s if s.starts_with("cd") => handler_cd(s),
@@ -56,6 +55,7 @@ fn main(argc: usize, argv: Args, envp: Args) -> i32 {
                     _ => {}
                 }
                 line.clear();
+                print!(">> ");
             }
             _ => line.push(c as char),
         }
@@ -79,7 +79,6 @@ fn handler_exec(path: &str) {
         }
     } else {
         waitpid(pid);
-        print!(">> ");
     }
 }
 
@@ -140,6 +139,5 @@ fn handler_cat(line: &str) {
         }
     } else {
         waitpid(pid);
-        print!(">> ");
     }
 }

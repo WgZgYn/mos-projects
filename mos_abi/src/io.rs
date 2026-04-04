@@ -30,6 +30,9 @@ impl IOError {
     pub const WRITE_ALL_EOF: Self = IOError {
         repr: IOErrorEnum::WriteZero,
     };
+    pub const READ_EXACT_EOF: Self = IOError {
+        repr: IOErrorEnum::UnexpectedEof,
+    };
     pub const UNKNOWN: Self = IOError {
         repr: IOErrorEnum::NotFound,
     };
@@ -65,13 +68,21 @@ pub trait Write {
 
 pub trait Read {
     fn read(&mut self, buf: &mut [u8]) -> IOResult<usize>;
-    fn read_exact(&mut self, buf: &mut [u8]) -> IOResult<()> {
-        let mut need = 0;
-        while need < buf.len() {
-            let n = self.read(&mut buf[need..])?;
-            need += n;
+    fn read_exact(&mut self, mut buf: &mut [u8]) -> IOResult<()> {
+        while !buf.is_empty() {
+            match self.read(buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    buf = &mut buf[n..];
+                }
+                Err(e) => return Err(e),
+            }
         }
-        Ok(())
+        if !buf.is_empty() {
+            Err(IOError::WRITE_ALL_EOF)
+        } else {
+            Ok(())
+        }
     }
 
     #[cfg(feature = "alloc")]

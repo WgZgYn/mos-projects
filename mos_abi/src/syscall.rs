@@ -19,7 +19,6 @@ pub enum Syscall {
 
     Pipe = 22,
 
-
     // schedule
     Yield = 24,
 

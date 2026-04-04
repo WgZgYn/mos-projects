@@ -1,7 +1,7 @@
 use core::arch::asm;
 use core::ffi::{CStr, c_char};
 
-use mos_lib::syscall::Syscall;
+use mos_abi::syscall::Syscall;
 use vfs_common::UserDirEntry;
 
 fn syscall(no: u64, args: [u64; 3]) -> u64 {

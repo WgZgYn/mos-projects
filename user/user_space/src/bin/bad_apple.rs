@@ -17,7 +17,6 @@ fn main() -> i32 {
     0
 }
 
-
 const VIDEO_WIDTH: usize = 320;
 const VIDEO_HEIGHT: usize = 200;
 const VIDEO_FPS: usize = 17;

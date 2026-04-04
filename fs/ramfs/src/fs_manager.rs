@@ -6,10 +6,19 @@ use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use alloc::collections::BTreeMap;
 use alloc::sync::Weak;
 use core::ops::Deref;
-use kernel_utils::{align_up, is_aligned};
 use log::{info, warn};
 use spin::Mutex;
 use vfs_traits::Inode;
+
+const fn align_up(addr: u64, align: u64) -> u64 {
+    (addr + align - 1) & !(align - 1)
+}
+const fn align_down(addr: u64, align: u64) -> u64 {
+    addr & !(align - 1)
+}
+const fn is_aligned(addr: u64, align: u64) -> bool {
+    addr & (align - 1) == 0
+}
 
 pub struct RamFsManager<'a> {
     pub access: Mutex<&'a mut RamFs>,

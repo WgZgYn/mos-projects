@@ -2,7 +2,7 @@
 #![no_main]
 
 use user_lib::fs::VfsError;
-use user_lib::{close, fork, get_char, pipe, println, read, waitpid, write, Pipe, STDOUT};
+use user_lib::{Pipe, STDOUT, close, fork, get_char, pipe, println, read, waitpid, write};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {

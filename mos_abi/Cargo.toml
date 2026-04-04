@@ -1,14 +1,13 @@
 [package]
-name = "kernel_utils"
+name = "mos_abi"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bitmap = { path = "../libs/bitmap" }
-spin = "0.10.0"
-log = "0.4.28"
-bitflags = "2.10.0"
+string_num = { path = "../libs/string_num" }
 num_enum = { version = "0.7.5", default-features = false }
+bitflags = "2.11.0"
+log = "0.4.29"
 
 
 [features]

@@ -40,8 +40,12 @@ pub trait Inode: Send + Sync {
         Err(VfsError::NotDir)
     }
 
-    fn on_open(&self, flags: OpenFlags) -> VfsResult<()> { Ok(()) }
-    fn on_close(&self, flags: OpenFlags) -> VfsResult<()> { Ok(()) }
+    fn on_open(&self, _flags: OpenFlags) -> VfsResult<()> {
+        Ok(())
+    }
+    fn on_close(&self, _flags: OpenFlags) -> VfsResult<()> {
+        Ok(())
+    }
 }
 
 pub trait StreamOps: Send + Sync {
@@ -59,7 +63,6 @@ pub trait DirOps: Send + Sync {
     fn create(&self, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>>;
 }
-
 
 #[derive(Clone)]
 pub struct DirEntry {

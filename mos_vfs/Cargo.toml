@@ -1,0 +1,13 @@
+[package]
+name = "mos_vfs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = "0.4.29"
+vfs_common = { path = "../vfs_common" }
+vfs_traits = { path = "../vfs_traits" }
+conquer-once = { version = "0.4.0", default-features = false }
+mos_abi = { path = "../mos_abi" }
+spin = "0.10.0"
+mos_arch = { path = "../mos_arch" }

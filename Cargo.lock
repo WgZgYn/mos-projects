@@ -209,9 +209,9 @@ dependencies = [
 
 [[package]]
 name = "bootloader_api"
-version = "0.11.14"
+version = "0.11.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "039c770d47edb905d1f08ec8af202831b5f1415e70f1b43b54eacf6d0899508c"
+checksum = "5c074a3d1075b26ed77e502d6af8ab1263abbdc3d026c166e46480f973287293"
 
 [[package]]
 name = "bs_string"
@@ -406,7 +406,7 @@ name = "elf_parser"
 version = "0.1.0"
 dependencies = [
  "goblin",
- "mos_lib",
+ "mos_abi",
 ]
 
 [[package]]
@@ -667,17 +667,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kernel_utils"
-version = "0.1.0"
-dependencies = [
- "bitflags 2.11.0",
- "bitmap",
- "log",
- "num_enum",
- "spin 0.10.0",
-]
-
-[[package]]
 name = "ktests"
 version = "0.1.0"
 dependencies = [
@@ -698,12 +687,6 @@ name = "libc"
 version = "0.2.177"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
-
-[[package]]
-name = "libm"
-version = "0.2.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "libredox"
@@ -806,21 +789,24 @@ version = "0.1.0"
 dependencies = [
  "acpi",
  "bootloader_api",
- "buddy_allocator",
  "cc",
  "collections",
  "conquer-once 0.4.0",
  "crossbeam-queue",
- "data_public",
  "futures-util",
  "goblin",
  "intrusive-collections",
- "kernel_utils",
  "lazy_static",
- "linked_list_allocator",
  "log",
  "mem_fs",
+ "mos_abi",
+ "mos_arch",
+ "mos_devfs",
+ "mos_driver",
  "mos_lib",
+ "mos_mem",
+ "mos_task",
+ "mos_vfs",
  "note",
  "noto-sans-mono-bitmap",
  "num_enum",
@@ -828,10 +814,7 @@ dependencies = [
  "pci_types",
  "pic8259",
  "ramfs",
- "raw-cpuid 11.6.0",
- "slab",
  "spin 0.10.0",
- "uart_16550",
  "vfs_common",
  "vfs_traits",
  "virtio-drivers",
@@ -855,13 +838,121 @@ dependencies = [
 ]
 
 [[package]]
-name = "mos_lib"
+name = "mos_abi"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.11.0",
  "log",
  "num_enum",
  "string_num",
+]
+
+[[package]]
+name = "mos_arch"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "mos_lib",
+ "raw-cpuid 11.6.0",
+ "spin 0.10.0",
+ "x86_64 0.15.4",
+]
+
+[[package]]
+name = "mos_async"
+version = "0.1.0"
+dependencies = [
+ "conquer-once 0.4.0",
+ "crossbeam-queue",
+ "futures-util",
+ "log",
+ "mos_arch",
+ "mos_driver",
+]
+
+[[package]]
+name = "mos_devfs"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "mos_arch",
+ "mos_driver",
+ "mos_vfs",
+ "vfs_common",
+ "vfs_traits",
+]
+
+[[package]]
+name = "mos_driver"
+version = "0.1.0"
+dependencies = [
+ "bootloader_api",
+ "conquer-once 0.4.0",
+ "crossbeam-queue",
+ "futures-util",
+ "lazy_static",
+ "log",
+ "mos_arch",
+ "mos_lib",
+ "mos_task",
+ "noto-sans-mono-bitmap",
+ "pc-keyboard",
+ "uart_16550",
+]
+
+[[package]]
+name = "mos_lib"
+version = "0.1.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "mos_mem"
+version = "0.1.0"
+dependencies = [
+ "bootloader_api",
+ "buddy_allocator",
+ "lazy_static",
+ "linked_list_allocator",
+ "log",
+ "mos_abi",
+ "mos_arch",
+ "mos_lib",
+ "vfs_traits",
+ "x86_64 0.15.4",
+]
+
+[[package]]
+name = "mos_task"
+version = "0.1.0"
+dependencies = [
+ "data_public",
+ "intrusive-collections",
+ "lazy_static",
+ "log",
+ "mos_abi",
+ "mos_arch",
+ "mos_lib",
+ "mos_mem",
+ "mos_vfs",
+ "num_enum",
+ "slab",
+ "spin 0.10.0",
+ "x86_64 0.15.4",
+]
+
+[[package]]
+name = "mos_vfs"
+version = "0.1.0"
+dependencies = [
+ "conquer-once 0.4.0",
+ "log",
+ "mos_abi",
+ "mos_arch",
+ "spin 0.10.0",
+ "vfs_common",
+ "vfs_traits",
 ]
 
 [[package]]
@@ -1049,7 +1140,6 @@ name = "ramfs"
 version = "0.1.0"
 dependencies = [
  "bitmap",
- "kernel_utils",
  "log",
  "spin 0.10.0",
  "string_num",
@@ -1063,8 +1153,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "env_logger",
- "kernel_utils",
  "log",
+ "mos_lib",
  "ramfs",
  "vfs_common",
  "vfs_traits",
@@ -1442,9 +1532,9 @@ checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "uart_16550"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71cceed8939ba6ebde9d1e8a603b3c7f1a239a3db22e1ff465ed71ddca7a7d66"
+checksum = "22ee77075ecbc5e1c9b1236d03ff013dd77c7bb06da181c5c44f1f39b6cf3ff2"
 dependencies = [
  "bitflags 2.11.0",
 ]
@@ -1495,24 +1585,6 @@ version = "0.1.0"
 dependencies = [
  "log",
  "serde_json",
-]
-
-[[package]]
-name = "user_lib"
-version = "0.1.0"
-dependencies = [
- "linked_list_allocator",
- "mos_lib",
- "vfs_common",
-]
-
-[[package]]
-name = "user_space"
-version = "0.1.0"
-dependencies = [
- "green_thread",
- "libm",
- "user_lib",
 ]
 
 [[package]]

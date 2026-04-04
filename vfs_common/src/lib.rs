@@ -137,10 +137,10 @@ pub fn isize_to_vfs_result(ret: isize) -> VfsResult<usize> {
 }
 
 mod tests {
-    use crate::VfsError;
 
     #[test]
     fn test_vfs_error_to_usize() {
+        use crate::VfsError;
         let all = VfsError::all_variants();
         for i in 0..all.len() {
             assert_eq!(all[i] as usize, i + 1);

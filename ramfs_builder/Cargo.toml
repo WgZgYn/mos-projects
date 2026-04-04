@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 ramfs = { path = "../fs/ramfs", default-features = false }
-kernel_utils = { path = "../kernel_utils" }
 vfs_common = { path = "../vfs_common" }
 vfs_traits = { path = "../vfs_traits" }
+mos_lib = { path = "../mos_lib" }
 
 log = "0.4.29"
 env_logger = "0.11.9"

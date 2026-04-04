@@ -13,14 +13,14 @@ use crate::syscall::{
 };
 use core::arch::global_asm;
 use core::ffi::{CStr, c_char};
-use mos_lib::fs::FileDesc;
-use mos_lib::memory::{MemoryMapFlags, MemoryProtFlags};
+use mos_abi::fs::FileDesc;
+use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
 use vfs_common::{OpenFlags, UserDirEntry, VfsResult, isize_to_vfs_result};
 
 #[cfg(feature = "alloc")]
 use linked_list_allocator::LockedHeap;
 
-pub use mos_lib as mos;
+pub use mos_abi as mos;
 pub use vfs_common as fs;
 
 /// Sometime if the user_lib is a pure lib,

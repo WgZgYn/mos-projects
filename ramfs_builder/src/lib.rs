@@ -1,5 +1,5 @@
-use kernel_utils::PageAligned;
 use log::info;
+use mos_lib::align::PageAligned;
 use ramfs::RamFsManager;
 use ramfs::vfs::RamFsSuperBlock;
 use std::fs::File;

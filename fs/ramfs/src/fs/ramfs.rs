@@ -8,6 +8,7 @@ use log::{info, trace};
 use spin::Mutex;
 static CURRENT_DIR: Mutex<InodeIndex> = Mutex::new(RAMFS_ROOT_INODE_INDEX);
 
+#[allow(unused)]
 impl RamFs {
     pub fn magic(&self) -> [u8; 8] {
         self.magic

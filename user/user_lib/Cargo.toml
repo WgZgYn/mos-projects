@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 vfs_common = { path = "../../vfs_common" }
-mos_lib = { path = "../../mos_lib" }
+mos_abi = { path = "../../mos_abi" }
 
 linked_list_allocator = "0.10.5"
 
 [features]
-alloc = ["mos_lib/alloc"]
+alloc = ["mos_abi/alloc"]

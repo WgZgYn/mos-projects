@@ -2,7 +2,7 @@
 #![no_main]
 
 use user_lib::fs::{OpenFlags, VfsError};
-use user_lib::{STDIN, open, println, read, sleep};
+use user_lib::{open, println, read, sleep};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
