@@ -7,4 +7,4 @@ edition = "2024"
 vfs_traits = { path = "../../vfs_traits" }
 vfs_common = { path = "../../vfs_common" }
 spin = "0.10.0"
-lazy_static = "1.5.0"
+lazy_static = { version = "1.5.0", features = ["spin_no_std"] }

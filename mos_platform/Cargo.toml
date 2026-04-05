@@ -1,0 +1,15 @@
+[package]
+name = "mos_platform"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+x86_64 = "0.15.4"
+acpi = "6.1.1"
+x2apic = "0.5.0"
+conquer-once = { version = "0.4.0", default-features = false }
+spin = "0.10.0"
+log = "0.4.29"
+pic8259 = "0.11.0"
+mos_arch = { path = "../mos_arch" }
+mos_driver = { path = "../mos_driver" }

@@ -29,6 +29,11 @@ pub use tree::TreeScheduleStrategy;
 // type ScheduleStrategyImpl = TreeScheduleStrategy;
 type ScheduleStrategyImpl = CfsScheduleStrategy;
 
+lazy_static! {
+    pub static ref SCHEDULER: IrqLocked<spin::Mutex<Scheduler<ScheduleStrategyImpl>>> =
+        unsafe { IrqLocked::new(spin::Mutex::new(Scheduler::new())) };
+}
+
 pub struct Scheduler<S: SchedStrategy> {
     current: KRef<ThreadControlBlock>,
     ready_queue: S::Queue,
@@ -86,12 +91,11 @@ impl<S: SchedStrategy> Scheduler<S> {
     }
 
     /// before call this function, the thread state must already be set
-    fn schedule(&mut self) {
+    fn schedule(&mut self) -> Option<KRef<ThreadControlBlock>> {
         let current_state = self.current.get_state();
         let new = match current_state {
             ThreadStateValue::Ready => {
-                info!("current thread is ready");
-                IDLE.clone()
+                panic!("should not be ready");
             }
 
             ThreadStateValue::Running => {
@@ -114,52 +118,61 @@ impl<S: SchedStrategy> Scheduler<S> {
         };
 
         if new.tid == self.current.tid {
-            return;
+            return None;
         }
 
-        Self::context_switch(&mut self.current, new);
+        Some(new)
+        // Self::context_switch(&mut self.current, new);
     }
 
-    fn context_switch(current: &mut KRef<ThreadControlBlock>, new: KRef<ThreadControlBlock>) {
-        let old_ctx = current.context.get();
+    fn context_switch(old: KRef<ThreadControlBlock>, new: KRef<ThreadControlBlock>) {
+        let old_ctx = old.context.get();
         let new_ctx = new.context.get();
-        unsafe {
-            if !current.process.mem.share_same_page_table(&new.process.mem) {
-                new.process.mem.activate()
+        fn inner(old: KRef<ThreadControlBlock>, new: KRef<ThreadControlBlock>) {
+            unsafe {
+                if !old.process.mem.share_same_page_table(&new.process.mem) {
+                    new.process.mem.activate()
+                }
+                write_rsp0(new.kstack.top());
+                update_per_cpu(|per_cpu| {
+                    per_cpu.kernel_stack_top = new.kstack.top().as_mut_ptr();
+                    per_cpu.temp_rsp = core::ptr::null_mut();
+                });
             }
-            write_rsp0(new.kstack.top());
-            update_per_cpu(|per_cpu| {
-                per_cpu.kernel_stack_top = new.kstack.top().as_mut_ptr();
-                per_cpu.temp_rsp = core::ptr::null_mut();
-            });
-            new.set_state(ThreadStateValue::Running);
-            *current = new;
+        }
+        inner(old, new);
+        unsafe {
             __switch_context(old_ctx, new_ctx);
         }
     }
 }
 
-lazy_static! {
-    pub static ref SCHEDULER: IrqLocked<Scheduler<ScheduleStrategyImpl>> =
-        unsafe { IrqLocked::new(Scheduler::new()) };
-}
-
-fn jump_to_idle() -> ! {
-    let ctx = IDLE.context.get();
-    unsafe { asm!("jmp __switch_to", in("rsi") ctx, options(nostack, noreturn)) }
-}
-
 pub fn schedule() {
-    SCHEDULER.access(|s| s.schedule());
+    SCHEDULER.access(|irq_session| {
+        let mut guard = irq_session.lock();
+        let Some(new) = guard.schedule() else {
+            return;
+        };
+        let old = guard.current.clone();
+        guard.current = new.clone();
+        new.set_state(ThreadStateValue::Running);
+        drop(guard);
+        Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
+    });
 }
 
 pub fn first_schedule() -> ! {
+    fn jump_to_idle() -> ! {
+        let ctx = IDLE.context.get();
+        unsafe { asm!("jmp __switch_to", in("rsi") ctx, options(nostack, noreturn)) }
+    }
+
     IDLE.state.store(ThreadStateValue::Running);
     jump_to_idle()
 }
 
 pub fn current_tcb() -> KRef<ThreadControlBlock> {
-    SCHEDULER.access(|s| s.current_tcb().clone())
+    SCHEDULER.access(|s| s.lock().current_tcb().clone())
 }
 
 pub fn scheduler_debug_info(tf: Option<&InterruptStackFrame>) {

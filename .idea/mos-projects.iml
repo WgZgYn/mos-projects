@@ -52,6 +52,11 @@
       <sourceFolder url="file://$MODULE_DIR$/mos_driver/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mos_async/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mos_devfs/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mos_display/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mos_platform/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mos_fs_runtime/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mos_runtime/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/mos_syscall/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user/target" />

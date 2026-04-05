@@ -1,5 +1,6 @@
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use mos_platform::timer::{add_timer, get_tick};
 
 pub struct Sleep {
     awake_tick: u64,

@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "acpi"
-version = "6.0.1"
+version = "6.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c85d96f36022f650ee6f184f1353d077124754cecf6a3e91085a708495c6f5a"
+checksum = "b763acdc1d85c36d61acf97a59938f23202d0e8efe45e8759de10c02db242744"
 dependencies = [
  "bit_field",
  "bitflags 2.11.0",
@@ -787,38 +787,25 @@ dependencies = [
 name = "mos"
 version = "0.1.0"
 dependencies = [
- "acpi",
  "bootloader_api",
  "cc",
- "collections",
- "conquer-once 0.4.0",
- "crossbeam-queue",
  "futures-util",
- "goblin",
- "intrusive-collections",
- "lazy_static",
  "log",
- "mem_fs",
  "mos_abi",
  "mos_arch",
  "mos_devfs",
+ "mos_display",
  "mos_driver",
- "mos_lib",
+ "mos_fs_runtime",
  "mos_mem",
+ "mos_platform",
+ "mos_runtime",
+ "mos_syscall",
  "mos_task",
- "mos_vfs",
  "note",
- "noto-sans-mono-bitmap",
- "num_enum",
- "pc-keyboard",
  "pci_types",
- "pic8259",
- "ramfs",
- "spin 0.10.0",
  "vfs_common",
- "vfs_traits",
  "virtio-drivers",
- "x2apic",
  "x86_64 0.15.4",
 ]
 
@@ -862,12 +849,12 @@ dependencies = [
 name = "mos_async"
 version = "0.1.0"
 dependencies = [
- "conquer-once 0.4.0",
  "crossbeam-queue",
  "futures-util",
  "log",
  "mos_arch",
  "mos_driver",
+ "mos_platform",
 ]
 
 [[package]]
@@ -880,6 +867,17 @@ dependencies = [
  "mos_vfs",
  "vfs_common",
  "vfs_traits",
+]
+
+[[package]]
+name = "mos_display"
+version = "0.1.0"
+dependencies = [
+ "bootloader_api",
+ "log",
+ "mos_arch",
+ "noto-sans-mono-bitmap",
+ "spin 0.10.0",
 ]
 
 [[package]]
@@ -898,6 +896,21 @@ dependencies = [
  "noto-sans-mono-bitmap",
  "pc-keyboard",
  "uart_16550",
+]
+
+[[package]]
+name = "mos_fs_runtime"
+version = "0.1.0"
+dependencies = [
+ "collections",
+ "mem_fs",
+ "mos_devfs",
+ "mos_task",
+ "mos_vfs",
+ "ramfs",
+ "spin 0.10.0",
+ "vfs_common",
+ "vfs_traits",
 ]
 
 [[package]]
@@ -920,6 +933,54 @@ dependencies = [
  "mos_arch",
  "mos_lib",
  "vfs_traits",
+ "x86_64 0.15.4",
+]
+
+[[package]]
+name = "mos_platform"
+version = "0.1.0"
+dependencies = [
+ "acpi",
+ "conquer-once 0.4.0",
+ "log",
+ "mos_arch",
+ "mos_driver",
+ "pic8259",
+ "spin 0.10.0",
+ "x2apic",
+ "x86_64 0.15.4",
+]
+
+[[package]]
+name = "mos_runtime"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "mos_arch",
+ "mos_driver",
+ "mos_lib",
+ "mos_mem",
+ "mos_platform",
+ "mos_syscall",
+ "mos_task",
+ "x86_64 0.15.4",
+]
+
+[[package]]
+name = "mos_syscall"
+version = "0.1.0"
+dependencies = [
+ "goblin",
+ "log",
+ "mos_abi",
+ "mos_arch",
+ "mos_fs_runtime",
+ "mos_lib",
+ "mos_mem",
+ "mos_platform",
+ "mos_task",
+ "mos_vfs",
+ "vfs_common",
  "x86_64 0.15.4",
 ]
 

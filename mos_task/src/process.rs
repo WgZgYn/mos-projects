@@ -231,15 +231,14 @@ impl ProcessControlBlock {
 
     /// actually it's unnecessary to clean every time when just one thread exit
     pub fn clean_exit_thread(&self, tid: Tid) {
-        let index = self
-            .threads
-            .lock()
+        let mut threads = self.threads.lock();
+        let index = threads
             .iter()
             .enumerate()
             .find(|(_, t)| **t == tid)
             .map(|(i, _)| i)
             .expect("should exist");
-        self.threads.lock().swap_remove(index);
+        threads.swap_remove(index);
     }
 
     pub fn fork(&self) -> Result<KRef<ProcessControlBlock>, &'static str> {

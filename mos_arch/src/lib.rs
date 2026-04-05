@@ -1,16 +1,21 @@
-#![feature(abi_x86_interrupt)]
 #![no_std]
 
 use crate::structs::FpuState;
 use core::arch::asm;
 use core::arch::x86_64::_rdtsc;
+use core::ops::Deref;
 use lazy_static::lazy_static;
 use raw_cpuid::CpuId;
 use x86_64::instructions::random::RdRand;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
+use x86_64::registers::model_specific::KernelGsBase;
 use x86_64::registers::mxcsr;
 use x86_64::registers::mxcsr::MxCsr;
 use x86_64::structures::paging::PhysFrame;
+use x86_64::VirtAddr;
+use crate::asm::syscall_entry_point;
+use crate::gdt::GDT;
+use crate::percpu::PER_CPU;
 
 pub mod asm;
 pub mod gdt;
@@ -131,4 +136,28 @@ pub fn load_fpu_state(state: &mut FpuState) {
     unsafe {
         asm!("fxrstor64 [{}]", in(reg) state as *mut FpuState, options(nostack, preserves_flags));
     }
+}
+
+fn init_syscall() {
+    use x86_64::registers::model_specific::{Efer, EferFlags, LStar, SFMask, Star};
+    unsafe {
+        Efer::update(|e| e.insert(EferFlags::SYSTEM_CALL_EXTENSIONS));
+        Star::write(
+            GDT.1.user_code,
+            GDT.1.user_data,
+            GDT.1.kernel_code,
+            GDT.1.kernel_data,
+        )
+            .expect("failed to set star");
+        LStar::write(VirtAddr::new(syscall_entry_point()));
+        SFMask::write(x86_64::registers::rflags::RFlags::INTERRUPT_FLAG);
+        KernelGsBase::write(VirtAddr::from_ptr(PER_CPU.deref()));
+    }
+}
+
+pub fn init() {
+    idt::load_idt();
+    gdt::init();
+    init_fpu();
+    init_syscall();
 }

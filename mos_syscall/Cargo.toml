@@ -1,0 +1,18 @@
+[package]
+name = "mos_syscall"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+x86_64 = "0.15.4"
+log = "0.4.29"
+goblin = { version = "0.10.4", default-features = false, features = ["elf64", "alloc", "elf32", "endian_fd"] }
+vfs_common = { path = "../vfs_common" }
+mos_abi = { path = "../mos_abi" }
+mos_lib = { path = "../mos_lib" }
+mos_arch = { path = "../mos_arch" }
+mos_mem = { path = "../mos_mem" }
+mos_vfs = { path = "../mos_vfs" }
+mos_task = { path = "../mos_task" }
+mos_platform = { path = "../mos_platform" }
+mos_fs_runtime = { path = "../mos_fs_runtime" }

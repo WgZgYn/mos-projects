@@ -1,5 +1,5 @@
-#![feature(allocator_api)]
 #![no_std]
+#![feature(allocator_api)]
 extern crate alloc;
 
 mod config;

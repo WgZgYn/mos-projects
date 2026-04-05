@@ -3,6 +3,7 @@ use crate::wait_queue::WaitQueue;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicBool, Ordering};
+use crate::thread::ThreadStateValue;
 
 pub struct Mutex<T> {
     data: UnsafeCell<T>,
@@ -44,7 +45,9 @@ impl<T> Mutex<T> {
             if let Some(guard) = self.try_lock() {
                 return guard;
             } else {
-                queue.deref_mut().enqueue(current_tcb());
+                let current = current_tcb();
+                current.set_state(ThreadStateValue::Blocked);
+                queue.deref_mut().enqueue(current);
                 drop(queue);
                 schedule()
             }

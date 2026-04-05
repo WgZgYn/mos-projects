@@ -9,7 +9,6 @@ num_enum = { version = "0.7.5", default-features = false }
 bitflags = "2.11.0"
 log = "0.4.29"
 
-
 [features]
-default = []
+default = ["alloc"]
 alloc = []

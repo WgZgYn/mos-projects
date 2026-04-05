@@ -33,11 +33,12 @@ pub fn reaper() -> ! {
     info!("[REAPER]: first running with {:?}", REAPER.tid);
     loop {
         SCHEDULER.access(|s| {
+            let mut s = s.lock();
             s.clean_exits(|t| {
                 info!("[REAPER]: try to drop thread: {:?}", t.tid);
-            })
+            });
+            s.block_reaper()
         });
-        SCHEDULER.access(|s| s.block_reaper());
         schedule();
     }
 }

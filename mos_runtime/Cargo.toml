@@ -1,0 +1,15 @@
+[package]
+name = "mos_runtime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+x86_64 = "0.15.4"
+log = "0.4.29"
+mos_lib = { path = "../mos_lib" }
+mos_arch = { path = "../mos_arch" }
+mos_platform = { path = "../mos_platform" }
+mos_task = { path = "../mos_task" }
+mos_mem = { path = "../mos_mem" }
+mos_syscall = { path = "../mos_syscall" }
+mos_driver = { path = "../mos_driver" }

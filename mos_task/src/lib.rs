@@ -15,7 +15,7 @@ pub mod wait_queue;
 pub fn enqueue_task(task: KRef<ThreadControlBlock>) {
     assert_eq!(task.get_state(), ThreadStateValue::Ready);
     SCHEDULER.access(|scheduler| {
-        scheduler.enqueue_task(task);
+        scheduler.lock().enqueue_task(task);
     })
 }
 

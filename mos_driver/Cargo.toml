@@ -9,10 +9,10 @@ pc-keyboard = "0.8.0"
 conquer-once = { version = "0.4.0", default-features = false }
 crossbeam-queue = { version = "0.3.12", features = ["alloc"], default-features = false }
 futures-util = { version = "0.3.31", default-features = false, features = ["alloc"] }
-mos_arch = { path = "../mos_arch" }
-mos_task = { path = "../mos_task" }
-mos_lib = { path = "../mos_lib" }
-lazy_static = "1.5.0"
+lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 uart_16550 = "0.6.0"
 noto-sans-mono-bitmap = { version = "0.3.2", features = ["size_20", "unicode-specials"] }
 bootloader_api = "0.11.14"
+mos_arch = { path = "../mos_arch" }
+mos_task = { path = "../mos_task" }
+mos_lib = { path = "../mos_lib" }

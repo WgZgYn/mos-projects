@@ -1,6 +1,6 @@
+#![no_std]
 #![feature(coerce_unsized)]
 #![feature(unsize)]
-#![no_std]
 
 pub mod align;
 pub mod rand;
