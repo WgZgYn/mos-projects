@@ -877,7 +877,6 @@ version = "0.1.0"
 dependencies = [
  "bootloader_api",
  "log",
- "mos_arch",
  "mos_lib",
  "mos_task",
  "noto-sans-mono-bitmap",
@@ -899,7 +898,6 @@ dependencies = [
  "mos_task",
  "noto-sans-mono-bitmap",
  "pc-keyboard",
- "spin 0.10.0",
  "uart_16550",
 ]
 

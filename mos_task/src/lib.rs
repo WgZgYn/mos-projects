@@ -1,7 +1,7 @@
 #![no_std]
 extern crate alloc;
 
-use crate::thread::{ThreadControlBlock, ThreadStateValue};
+use crate::thread::ThreadControlBlock;
 use mos_lib::sync::KRef;
 
 mod block_mutex;
