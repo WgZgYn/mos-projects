@@ -1,9 +1,8 @@
-use crate::scheduler::{current_tcb, schedule};
+use crate::scheduler::{park_current, wake_blocked_task, ParkDecision};
 use crate::wait_queue::WaitQueue;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicBool, Ordering};
-use crate::thread::ThreadStateValue;
 
 pub struct Mutex<T> {
     data: UnsafeCell<T>,
@@ -18,7 +17,7 @@ pub struct MutexGuard<'a, T> {
 impl<'a, T> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
         self.inner.lock.store(false, Ordering::Release);
-        self.inner.wait_queue.wake_one(); // or wake_all ?, or I need use semp
+        wake_blocked_task(self.inner.wait_queue.lock().wake_one())
     }
 }
 
@@ -41,15 +40,18 @@ impl<T> Mutex<T> {
     /// maybe schedule
     pub fn lock(&self) -> MutexGuard<'_, T> {
         loop {
-            let mut queue = self.wait_queue.lock();
             if let Some(guard) = self.try_lock() {
                 return guard;
             } else {
-                let current = current_tcb();
-                current.set_state(ThreadStateValue::Blocked);
-                queue.deref_mut().enqueue(current);
-                drop(queue);
-                schedule()
+                let mut queue = self.wait_queue.lock();
+                park_current(|task| {
+                    if self.lock.load(Ordering::Acquire) {
+                        queue.wait_task(task);
+                        ParkDecision::Park
+                    } else {
+                        ParkDecision::Unpark
+                    }
+                })
             }
         }
     }

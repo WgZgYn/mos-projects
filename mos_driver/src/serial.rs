@@ -1,19 +1,23 @@
+use core::ops::DerefMut;
 use lazy_static::lazy_static;
-use mos_arch::sync::SpinIrqLock;
+use mos_task::preempt_session::PreemptSpinLock;
 use uart_16550::backend::PioBackend;
 use uart_16550::{Config, Uart16550Tty};
 
 lazy_static! {
-    pub static ref SERIAL1: SpinIrqLock<Uart16550Tty<PioBackend>> = {
-        let serial_port = unsafe { Uart16550Tty::new_port(0x3F8, Config::DEFAULT) }.unwrap();
-        SpinIrqLock::new(serial_port)
+    pub static ref SERIAL1: PreemptSpinLock<Option<Uart16550Tty<PioBackend>>> = {
+        let serial_port = unsafe { Uart16550Tty::new_port(0x3F8, Config::DEFAULT) }.ok();
+        PreemptSpinLock::new(serial_port)
     };
 }
 
 #[doc(hidden)]
-pub fn _print(args: ::core::fmt::Arguments) {
+pub fn _print(args: core::fmt::Arguments) {
     use core::fmt::Write;
-    SERIAL1.access(|serial| serial.write_fmt(args).expect("Printing to serial failed"))
+    let mut guard = SERIAL1.lock();
+    if let Some(s) = guard.deref_mut() {
+        let _ = s.write_fmt(args);
+    }
 }
 
 /// Prints to the host through the serial interface.

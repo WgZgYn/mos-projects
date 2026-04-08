@@ -25,6 +25,9 @@ impl<T> KernelBootGlobal<T> {
     pub unsafe fn get(&self) -> &T {
         unsafe { (*self.0.get()).assume_init_ref() }
     }
+    pub unsafe fn get_mut(&mut self) -> &mut T {
+        unsafe { (*self.0.get()).assume_init_mut() }
+    }
 }
 unsafe impl<T> Send for KernelBootGlobal<T> {}
 unsafe impl<T> Sync for KernelBootGlobal<T> {}

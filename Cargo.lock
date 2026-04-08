@@ -802,8 +802,10 @@ dependencies = [
  "mos_runtime",
  "mos_syscall",
  "mos_task",
+ "mos_vfs",
  "note",
  "pci_types",
+ "vcode",
  "vfs_common",
  "virtio-drivers",
  "x86_64 0.15.4",
@@ -876,6 +878,8 @@ dependencies = [
  "bootloader_api",
  "log",
  "mos_arch",
+ "mos_lib",
+ "mos_task",
  "noto-sans-mono-bitmap",
  "spin 0.10.0",
 ]
@@ -895,6 +899,7 @@ dependencies = [
  "mos_task",
  "noto-sans-mono-bitmap",
  "pc-keyboard",
+ "spin 0.10.0",
  "uart_16550",
 ]
 
@@ -945,6 +950,7 @@ dependencies = [
  "log",
  "mos_arch",
  "mos_driver",
+ "mos_lib",
  "pic8259",
  "spin 0.10.0",
  "x2apic",
@@ -1670,6 +1676,10 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "vcode"
+version = "0.1.0"
 
 [[package]]
 name = "version_check"

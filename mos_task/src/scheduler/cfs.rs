@@ -15,7 +15,7 @@ impl<'a> KeyAdapter<'a> for RBAdapter {
     type Key = (u64, Tid);
 
     fn get_key(&self, value: &'a <Self::PointerOps as PointerOps>::Value) -> Self::Key {
-        (value.vruntime.load(), value.tid)
+        value.cfs_key()
     }
 }
 
@@ -34,7 +34,7 @@ impl ReadyQueue for CfsReadyQueue {
 
             // cache
             if let Some(min) = &self.min {
-                let min_key = (min.vruntime.load(), min.tid);
+                let min_key = min.cfs_key();
                 if key < min_key {
                     self.min = Some(task_ref);
                     trace!(

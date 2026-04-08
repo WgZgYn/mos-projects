@@ -18,6 +18,16 @@ pub trait InterruptController {
 
 pub const OS_HZ: u64 = 1000;
 
+#[inline]
+pub const fn ms_to_ticks(ms: u64) -> u64 {
+    ms.saturating_mul(OS_HZ).div_ceil(1000)
+}
+
+#[inline]
+pub const fn ticks_to_ms(ticks: u64) -> u64 {
+    ticks.saturating_mul(1000) / OS_HZ
+}
+
 static INTERRUPT_CONTROLLER: apic::Apic = apic::apic_mode();
 pub fn init() {
     INTERRUPT_CONTROLLER.initialize();

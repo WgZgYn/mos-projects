@@ -37,9 +37,3 @@ pub trait SchedStrategy {
         queue.peek()
     }
 }
-
-pub trait Waitable {
-    fn wait(&self, current: KRef<ThreadControlBlock>);
-    fn wake_one(&self) -> bool;
-    fn wake_all(&self) -> usize;
-}

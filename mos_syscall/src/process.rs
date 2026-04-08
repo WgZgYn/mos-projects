@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::task::load_elf_from_file;
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::ffi::CString;
@@ -27,13 +28,12 @@ use mos_fs_runtime::pipe::make_pipe;
 use mos_lib::align::align_down;
 use mos_lib::sync::KRef;
 use mos_mem::PageTableManager;
-use mos_platform::OS_HZ;
-use mos_platform::timer::{add_timer, get_tick};
-use crate::task::load_elf_from_file;
+use mos_platform::timer::{add_timer, monotonic_deadline_after_ms};
 use mos_task::enqueue_task;
 use mos_task::process::{KernelStack, ProcessControlBlock};
+use mos_task::scheduler::{ParkDecision, exit_current, park_current, wake_blocked_task};
 use mos_task::thread::{ThreadControlBlock, ThreadState, ThreadStateValue};
-use mos_task::{SCHEDULER, current_tcb, schedule};
+use mos_task::{current_tcb, schedule};
 use vfs_common::{OpenFlags, VfsResult};
 use x86_64::VirtAddr;
 use x86_64::instructions::tlb;
@@ -105,10 +105,7 @@ pub fn sys_execve(
     frame.scratch = ScratchRegisters::default();
     frame.scratch.rcx = entry.as_u64();
     frame.scratch.r11 = ProcessContext::DEFAULT_RFLAGS.bits();
-    unsafe {
-        let fpu = &mut (*current_tcb.context.get()).fpu;
-        init_fpu_state(fpu);
-    }
+    current_tcb.init_fpu_state();
     tlb::flush_all();
 
     unsafe fn copy_str_array(ptr_top: &mut *mut u8, data: &[CString]) -> Vec<*mut u8> {
@@ -171,12 +168,14 @@ pub fn sys_spawn() -> isize {
 }
 
 pub fn sys_sleep(ms: u64) {
-    let current_tick = get_tick();
-    let target_tick = current_tick + ms * 1000 / OS_HZ;
-    let current = current_tcb();
-    current.set_state(ThreadStateValue::Blocked);
-    add_timer(target_tick, Some(Waker::from(current)));
-    schedule();
+    let deadline = monotonic_deadline_after_ms(ms);
+    park_current(|task| {
+        if add_timer(deadline, Some(Waker::from(task))) {
+            ParkDecision::Park
+        } else {
+            ParkDecision::Unpark
+        }
+    });
 }
 
 /// ### child process must set the exited `true` when exiting to avoid parent process waiting infinitely
@@ -196,11 +195,19 @@ pub fn sys_wait(pid: u64) -> i32 {
     };
 
     loop {
-        if child.exited.load(Ordering::Acquire) {
+        let mut ok = false;
+        park_current(|task| {
+            if child.exited.load(Ordering::Acquire) {
+                ok = true;
+                ParkDecision::Unpark
+            } else {
+                child.wait_queue.lock().wait_task(task);
+                ParkDecision::Park
+            }
+        });
+        if ok {
             break;
         }
-        child.wait_queue.wait(current_tcb.clone());
-        schedule();
     }
     drop(child);
 
@@ -236,11 +243,9 @@ pub fn sys_exit(exit_code: i32) -> ! {
     let shared = &current.process.shared;
     shared.exited.store(true, Ordering::Release);
     shared.exit_code.store(exit_code, Ordering::Release);
-    shared.wait_queue.wake_all();
-    current.set_state(ThreadStateValue::Zombied);
+    wake_blocked_task(shared.wait_queue.lock().wake_all());
     drop(current);
-    schedule();
-    unreachable!("return from exit thread");
+    exit_current();
 }
 
 pub fn sys_brk(brk: u64) -> u64 {

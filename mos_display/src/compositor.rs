@@ -1,11 +1,11 @@
 use crate::traits::PixelBuffer;
-use alloc::sync::Arc;
-use alloc::vec::Vec;
-use mos_arch::sync::SpinIrqLock;
-use spin::Mutex;
-use crate::Rect;
 use crate::traits::{Compositor, PixelSink, PixelWindow};
 use crate::window::{Surface, Window};
+use crate::Rect;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use mos_task::preempt_session::PreemptSpinLock;
+use spin::Mutex;
 
 pub struct DisplayManager<Window: PixelWindow> {
     windows: Vec<Arc<Mutex<Window>>>,
@@ -68,13 +68,13 @@ impl<Window: PixelWindow> DisplayManager<Window> {
     }
 }
 
-static DISPLAY_MANAGER: SpinIrqLock<DisplayManager<Window<Surface>>> =
-    SpinIrqLock::new(DisplayManager::new());
+static DISPLAY_MANAGER: PreemptSpinLock<DisplayManager<Window<Surface>>> =
+    PreemptSpinLock::new(DisplayManager::new());
 
 pub fn render_to(sink: &mut impl PixelSink) {
-    DISPLAY_MANAGER.access(|d| d.flush(sink));
+    DISPLAY_MANAGER.lock().flush(sink);
 }
 
 pub fn new_window(info: Rect) -> Arc<Mutex<Window<Surface>>> {
-    DISPLAY_MANAGER.access(|d| d.add_new_window(info))
+    DISPLAY_MANAGER.lock().add_new_window(info)
 }

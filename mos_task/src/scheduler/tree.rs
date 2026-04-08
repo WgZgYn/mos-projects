@@ -13,7 +13,7 @@ impl Eq for TreeEntry {}
 
 impl PartialEq<Self> for TreeEntry {
     fn eq(&self, other: &Self) -> bool {
-        (self.0.vruntime.load(), self.0.tid) == (other.0.vruntime.load(), other.0.tid)
+        self.0.cfs_key() == other.0.cfs_key()
     }
 }
 
@@ -25,7 +25,7 @@ impl PartialOrd<Self> for TreeEntry {
 
 impl Ord for TreeEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.0.vruntime.load(), self.0.tid).cmp(&(other.0.vruntime.load(), other.0.tid))
+        self.0.cfs_key().cmp(&(other.0.cfs_key()))
     }
 }
 

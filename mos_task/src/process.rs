@@ -1,3 +1,4 @@
+use crate::preempt_session::PreemptSpinLock;
 use crate::thread::{Priority, ThreadControlBlock, Tid};
 use crate::wait_queue::WaitQueue;
 use alloc::boxed::Box;
@@ -11,7 +12,6 @@ use lazy_static::lazy_static;
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
 use mos_arch::structs::ProcessContext;
-use mos_arch::sync::SpinIrqLock;
 use mos_lib::Frame4KiB;
 use mos_lib::sync::{KRef, RefCounted};
 use mos_mem::PageTableManager;
@@ -35,7 +35,7 @@ lazy_static! {
 }
 
 // use slab as the allocator
-static PCB_SLAB: SpinIrqLock<Slab<ProcessControlBlock>> = SpinIrqLock::new(Slab::new());
+static PCB_SLAB: PreemptSpinLock<Slab<ProcessControlBlock>> = PreemptSpinLock::new(Slab::new());
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Pid(u64);
@@ -56,7 +56,7 @@ impl KernelStack {
     pub fn new(page_size: usize) -> Self {
         let data: Box<[MaybeUninit<Frame4KiB>]> = Box::new_uninit_slice(page_size);
         let data = unsafe { data.assume_init() };
-        let rsp = unsafe { data.as_ptr().add(page_size) };
+        let _rsp = unsafe { data.as_ptr().add(page_size) };
         // info!("stack low: {:?}, top: {:?}", data.as_ptr(), rsp);
         Self { _data: data }
     }
@@ -109,6 +109,9 @@ impl FileTable {
     pub fn len(&self) -> usize {
         self.slab.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.slab.is_empty()
+    }
 }
 
 struct_field_public! {
@@ -155,21 +158,19 @@ impl ProcessControlBlock {
             ProcessContext::kernel_context()
         };
 
-        let pcb = PCB_SLAB.access(|slab| {
-            let v = slab.insert_with_key(|key| Self {
-                pid: Pid(key as _),
-                mem: MemorySet::new(page_table, user_space),
-                threads: Mutex::new(Vec::new()),
-                context,
-                refcount: AtomicUsize::new(1),
-                childs: Mutex::new(Vec::new()),
-                shared: SharedState::new_shared(Pid(key as _)),
-                files: Mutex::new(FileTable::empty()),
-                work_dir: Mutex::new(vfs_root_dentry()),
-            });
-            unsafe { KRef::from_ptr(NonNull::from_ref(v)) }
+        let mut guard = PCB_SLAB.lock();
+        let pcb = guard.insert_with_key(|key| Self {
+            pid: Pid(key as _),
+            mem: MemorySet::new(page_table, user_space),
+            threads: Mutex::new(Vec::new()),
+            context,
+            refcount: AtomicUsize::new(1),
+            childs: Mutex::new(Vec::new()),
+            shared: SharedState::new_shared(Pid(key as _)),
+            files: Mutex::new(FileTable::empty()),
+            work_dir: Mutex::new(vfs_root_dentry()),
         });
-        Ok(pcb)
+        Ok(unsafe { KRef::from_ptr(NonNull::from_ref(pcb)) })
     }
     pub fn new_empty_user() -> Result<KRef<Self>, &'static str> {
         Self::new_empty(true, true)
@@ -274,6 +275,6 @@ impl RefCounted for ProcessControlBlock {
         &self.refcount
     }
     unsafe fn destroy(&self) {
-        PCB_SLAB.access(|slab| slab.remove_inplace(self.pid.0 as _));
+        PCB_SLAB.lock().remove_inplace(self.pid.0 as _);
     }
 }

@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
 use collections::array::ringbuf::bounded::RingBuffer;
-use mos_task::wait_queue::WaitQueue;
-use mos_task::{current_tcb, schedule};
+use mos_task::scheduler::{ParkDecision, park_current, wake_blocked_task};
+use mos_task::wait_queue::WaitQueueInner;
 use spin::Mutex;
 use vfs_common::{FileType, IoContext, OpenFlags, VfsError, VfsResult};
 use vfs_traits::{Inode, StreamOps};
@@ -10,8 +10,8 @@ struct PipeInner {
     readers: usize,
     writers: usize,
     buffer: RingBuffer<u8, 512>,
-    read_queue: WaitQueue,
-    write_queue: WaitQueue,
+    read_queue: WaitQueueInner,
+    write_queue: WaitQueueInner,
 }
 
 impl PipeInner {
@@ -20,8 +20,8 @@ impl PipeInner {
             readers: 0,
             writers: 0,
             buffer: RingBuffer::new(),
-            read_queue: WaitQueue::new(),
-            write_queue: WaitQueue::new(),
+            read_queue: WaitQueueInner::new(),
+            write_queue: WaitQueueInner::new(),
         }
     }
 }
@@ -51,11 +51,11 @@ impl Inode for PipeInode {
         let mut inner = self.inner.lock();
         if flags.contains(OpenFlags::READ) {
             inner.readers -= 1;
-            inner.write_queue.wake_all();
+            wake_blocked_task(inner.write_queue.wake_all());
         }
         if flags.contains(OpenFlags::WRITE) {
             inner.writers -= 1;
-            inner.read_queue.wake_all();
+            wake_blocked_task(inner.read_queue.wake_all());
         }
         Ok(())
     }
@@ -67,7 +67,7 @@ impl StreamOps for PipeInode {
 
             if !inner.buffer.is_empty() {
                 let n = inner.buffer.read_slice(buf);
-                inner.write_queue.wake_all();
+                wake_blocked_task(inner.write_queue.wake_all());
                 return Ok(n);
             }
 
@@ -79,10 +79,11 @@ impl StreamOps for PipeInode {
                 return Err(VfsError::Pendding);
             }
 
-            let current_tcb = current_tcb();
-            inner.read_queue.wait(current_tcb);
-            drop(inner);
-            schedule();
+            park_current(|task| {
+                inner.read_queue.wait_task(task);
+                drop(inner);
+                ParkDecision::Park
+            });
             // we need recheck to prevent wake from other's open
         }
     }
@@ -97,7 +98,7 @@ impl StreamOps for PipeInode {
 
             if !inner.buffer.is_full() {
                 let n = inner.buffer.write_slice(buf);
-                inner.read_queue.wake_all();
+                wake_blocked_task(inner.read_queue.wake_all());
                 return Ok(n);
             }
 
@@ -105,13 +106,19 @@ impl StreamOps for PipeInode {
                 return Err(VfsError::Pendding);
             }
 
-            let current_tcb = current_tcb();
-            inner.write_queue.wait(current_tcb);
-            // this is necessary to release the lock to prevent deadlock
-            drop(inner);
-            schedule();
+            park_current(|task| {
+                inner.write_queue.wait_task(task);
+                drop(inner);
+                ParkDecision::Park
+            })
             // we need recheck to prevent wake from other's open
         }
+    }
+}
+
+impl Default for PipeInode {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -148,31 +155,35 @@ impl Inode for FifoInode {
         match (is_reader, is_writer) {
             // NonBlock, wake all
             (true, true) => {
-                let inner = self.pipe.inner.lock();
-                inner.write_queue.wake_all();
-                inner.read_queue.wake_all();
+                let mut inner = self.pipe.inner.lock();
+                wake_blocked_task(inner.write_queue.wake_all());
+                wake_blocked_task(inner.read_queue.wake_all());
                 Ok(())
             }
             //
             (true, _) => loop {
-                let inner = self.pipe.inner.lock();
-                inner.write_queue.wake_all();
+                let mut inner = self.pipe.inner.lock();
+                wake_blocked_task(inner.write_queue.wake_all());
                 if inner.writers > 0 {
                     return Ok(());
                 }
-                inner.read_queue.wait(current_tcb());
-                drop(inner);
-                schedule();
+                park_current(|task| {
+                    inner.read_queue.wait_task(task);
+                    drop(inner);
+                    ParkDecision::Park
+                });
             },
             (_, true) => loop {
-                let inner = self.pipe.inner.lock();
-                inner.read_queue.wake_all();
+                let mut inner = self.pipe.inner.lock();
+                wake_blocked_task(inner.read_queue.wake_all());
                 if inner.readers > 0 {
                     return Ok(());
                 }
-                inner.write_queue.wait(current_tcb());
-                drop(inner);
-                schedule();
+                park_current(|task| {
+                    inner.write_queue.wait_task(task);
+                    drop(inner);
+                    ParkDecision::Park
+                });
             },
             (false, false) => Err(VfsError::NotOpen),
         }

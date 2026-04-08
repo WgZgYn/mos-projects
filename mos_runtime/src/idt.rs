@@ -1,4 +1,3 @@
-use core::sync::atomic::Ordering;
 use log::info;
 use mos_arch::idt::{
     set_breakpoint_handler, set_double_fault_handler, set_general_handler,
@@ -13,6 +12,7 @@ use mos_platform::eoi;
 use mos_platform::pic::InterruptIndex;
 use mos_platform::timer::tick;
 use mos_syscall::{process::sys_exit, syscall};
+use mos_task::scheduler::get_preempt_count;
 use mos_task::thread::ThreadControlBlock;
 use mos_task::{current_tcb, schedule, scheduler_debug_info};
 use x86_64::addr::VirtAddrNotValid;
@@ -54,16 +54,13 @@ fn user_space_panic_handler(_stack_frame: InterruptStackFrame) -> ! {
 }
 
 pub extern "C" fn check_schedule() {
-    current_tcb().get_clear_need_schedule().then(schedule);
+    (current_tcb().get_clear_need_schedule() && get_preempt_count() == 0).then(schedule);
 }
 
 make_interrupt_handler!(
     trap_handler,
     |frame| {
         let mut syscall_context = SyscallContext::from(frame.clone());
-        current_tcb()
-            .user_frame
-            .store(&mut syscall_context, Ordering::Release);
         syscall(&mut syscall_context);
         frame.preserved = syscall_context.preserved;
         frame.iret.rip = syscall_context.scratch.rcx;

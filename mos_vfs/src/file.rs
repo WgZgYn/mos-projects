@@ -92,6 +92,9 @@ impl File {
     pub fn set_offset(&mut self, offset: u64) {
         *self.offset.lock() = offset;
     }
+    pub fn get_offset(&self) -> u64 {
+        *self.offset.lock()
+    }
     /// this need check file type early at vfs_open
     pub fn is_dir(&self) -> bool {
         self.flags.contains(OpenFlags::DIRECTORY)

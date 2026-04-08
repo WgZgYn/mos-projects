@@ -9,3 +9,5 @@ spin = "0.10.0"
 bootloader_api = "0.11.15"
 mos_arch = { path = "../mos_arch" }
 noto-sans-mono-bitmap = { version = "0.3.2", features = ["size_20", "unicode-specials"] }
+mos_task = { path = "../mos_task" }
+mos_lib = { path = "../mos_lib" }

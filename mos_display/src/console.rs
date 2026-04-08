@@ -3,8 +3,9 @@ use crate::traits::PixelWindow;
 use crate::{render_to_framebuffer, Rect, SharedWindow, RGBA};
 use core::fmt;
 use core::fmt::Write;
+use core::ops::DerefMut;
 use log::{Log, Metadata, Record};
-use mos_arch::sync::IrqLocked;
+use mos_task::preempt_session::PreemptSpinLock;
 use noto_sans_mono_bitmap::{get_raster, FontWeight, RasterHeight, RasterizedChar};
 
 /// Additional vertical space between lines
@@ -151,11 +152,11 @@ impl Write for Console {
     }
 }
 
-pub struct ConsoleLogger(IrqLocked<Console>);
+pub struct ConsoleLogger(PreemptSpinLock<Console>);
 
 impl ConsoleLogger {
     pub const fn new(console: Console) -> Self {
-        Self(unsafe { IrqLocked::new(console) })
+        Self(PreemptSpinLock::new(console))
     }
 }
 
@@ -165,15 +166,12 @@ impl Log for ConsoleLogger {
     }
 
     fn log(&self, record: &Record) {
-        self.0.access(|console| {
-            let _ = write!(console, "{}\n", record.args());
-            console.commit();
-        })
+        let mut guard = self.0.lock();
+        let _ = writeln!(guard.deref_mut(), "{}", record.args());
+        guard.commit();
     }
 
     fn flush(&self) {
-        self.0.access(|console| {
-            console.commit();
-        })
+        self.0.lock().commit()
     }
 }

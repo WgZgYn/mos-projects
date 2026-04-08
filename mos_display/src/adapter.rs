@@ -1,7 +1,9 @@
 use crate::RGBA;
-use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
-use mos_arch::sync::SpinIrqLock;
 use crate::traits::PixelSink;
+use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
+use core::ops::DerefMut;
+use mos_lib::KernelBootGlobal;
+use mos_task::preempt_session::PreemptSpinLock;
 
 type BlitRowFn = fn(dst: &mut [u8], src: &[RGBA]);
 
@@ -111,20 +113,16 @@ impl PixelSink for FrameBufferAdapter {
     }
 }
 
-static ADAPTER: SpinIrqLock<Option<FrameBufferAdapter>> = SpinIrqLock::new(None);
+static ADAPTER: PreemptSpinLock<KernelBootGlobal<FrameBufferAdapter>> =
+    PreemptSpinLock::new(KernelBootGlobal::uninit());
 
-pub fn init_framebuffer_adapter(
-    framebuffer: &'static mut FrameBuffer,
-) -> Option<FrameBufferAdapter> {
-    ADAPTER.access(|a| a.replace(FrameBufferAdapter::new(framebuffer)))
+pub fn init_framebuffer_adapter(framebuffer: &'static mut FrameBuffer) {
+    unsafe {
+        ADAPTER.lock().init(|| FrameBufferAdapter::new(framebuffer));
+    }
 }
 
-pub fn access_framebuffer_adapter<R>(f: impl FnOnce(&mut FrameBufferAdapter) -> R) -> Option<R> {
-    ADAPTER.access(|a| {
-        if let Some(adapter) = a {
-            Some(f(adapter))
-        } else {
-            None
-        }
-    })
+pub fn access_framebuffer_adapter<R>(f: impl FnOnce(&mut FrameBufferAdapter) -> R) -> R {
+    let mut guard = ADAPTER.lock();
+    unsafe { f(guard.deref_mut().get_mut()) }
 }

@@ -4,25 +4,21 @@ use core::task::Waker;
 use crossbeam_queue::ArrayQueue;
 use futures_util::task::AtomicWaker;
 use log::{error, warn};
-use mos_task::thread::ThreadStateValue;
-use mos_task::{current_tcb, schedule};
+use mos_task::scheduler::{ParkDecision, park_current};
 use pc_keyboard::{
     DecodedKey, HandleControl, Keyboard, KeyboardLayout, ScancodeSet, ScancodeSet1, layouts,
 };
 
-// TODO: make it initiated early
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 static WAKER: AtomicWaker = AtomicWaker::new();
 
 /// 被中断处理程序调用
 /// 不能阻塞或者分配
 pub fn add_scancode(scancode: u8) {
-    if let Ok(queue) = SCANCODE_QUEUE.try_get() {
-        if queue.push(scancode).is_ok() {
-            WAKER.wake(); // new
-        }
-    } else {
-        // warn!("scancode queue uninitialized");
+    if let Ok(queue) = SCANCODE_QUEUE.try_get()
+        && queue.push(scancode).is_ok()
+    {
+        WAKER.wake(); // new
     }
 }
 
@@ -39,6 +35,13 @@ pub fn try_init_once_scancode_queue() {
             error!("SCANCODE_QUEUE initialization twice");
         }
     }
+}
+
+pub fn has_key_code() -> bool {
+    SCANCODE_QUEUE
+        .try_get()
+        .map(|q| !q.is_empty())
+        .unwrap_or(false)
 }
 
 pub fn try_get_key_code() -> Option<u8> {
@@ -65,10 +68,14 @@ impl ScancodeSyncStream {
             if let Some(code) = try_get_key_code() {
                 return code;
             }
-            let current_tcb = current_tcb();
-            current_tcb.set_state(ThreadStateValue::Blocked);
-            WAKER.register(&Waker::from(current_tcb));
-            schedule();
+            park_current(|task| {
+                if has_key_code() {
+                    ParkDecision::Unpark
+                } else {
+                    WAKER.register(&Waker::from(task));
+                    ParkDecision::Park
+                }
+            })
         }
     }
     pub fn next_scancode_nonblocking(&mut self) -> Option<u8> {

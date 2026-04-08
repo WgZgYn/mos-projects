@@ -12,8 +12,7 @@ use crate::random::sys_rand;
 use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
 use alloc::vec::Vec;
-use core::ffi::{c_char, CStr};
-use core::sync::atomic::Ordering;
+use core::ffi::{CStr, c_char};
 use log::info;
 use mos_abi::ffi::NullEndPointerArray;
 use mos_abi::fs::FileDesc;
@@ -22,7 +21,6 @@ use mos_abi::syscall::Syscall;
 use mos_arch::register_syscall;
 use mos_arch::structs::SyscallContext;
 use mos_lib::align::{align_up, is_aligned};
-use mos_task::current_tcb;
 use vfs_common::UserDirEntry;
 use x86_64::VirtAddr;
 use x86_64::structures::paging::Page;
@@ -170,6 +168,5 @@ pub fn syscall(context: &mut SyscallContext) {
 }
 
 register_syscall!(fast_syscall, |sys_args| {
-    current_tcb().user_frame.store(sys_args, Ordering::Release);
     syscall(sys_args);
 });

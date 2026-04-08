@@ -1,22 +1,21 @@
-#![allow(unused)]
-
+use crate::acpi::{pm_timer_freq, pm_timer_mask, pm_timer_tick};
 use alloc::vec::Vec;
-use core::iter::Iterator;
 use core::sync::atomic::{AtomicU64, Ordering};
 use core::task::Waker;
-use mos_arch::sync::{IrqLocked, SpinIrqLock};
+use mos_arch::sync::SpinIrqLock;
 
 pub struct SystemTimer {
     counter: AtomicU64,
 }
 
 impl SystemTimer {
-    const fn new() -> SystemTimer {
-        SystemTimer {
+    const fn new() -> Self {
+        Self {
             counter: AtomicU64::new(0),
         }
     }
-    pub fn tick(&self) -> u64 {
+
+    fn tick(&self) -> u64 {
         self.counter.fetch_add(1, Ordering::Relaxed) + 1
     }
 
@@ -25,121 +24,138 @@ impl SystemTimer {
     }
 }
 
+#[derive(Default)]
+struct MonotonicClock {
+    total_pm_ticks: u64,
+    last_raw_tick: u32,
+    initialized: bool,
+}
+
+impl MonotonicClock {
+    const fn new() -> Self {
+        Self {
+            total_pm_ticks: 0,
+            last_raw_tick: 0,
+            initialized: false,
+        }
+    }
+
+    fn init(&mut self, raw_tick: u32) {
+        self.total_pm_ticks = 0;
+        self.last_raw_tick = raw_tick;
+        self.initialized = true;
+    }
+
+    fn sample(&mut self, raw_tick: u32) -> u64 {
+        if !self.initialized {
+            self.init(raw_tick);
+            return 0;
+        }
+
+        let delta = raw_tick.wrapping_sub(self.last_raw_tick) & pm_timer_mask();
+        self.last_raw_tick = raw_tick;
+        self.total_pm_ticks += delta as u64;
+        self.total_pm_ticks
+    }
+}
+
+struct TimerEntry {
+    deadline: u64,
+    waker: Waker,
+}
+
+struct TimerQueue {
+    entries: Vec<TimerEntry>,
+}
+
+impl TimerQueue {
+    const fn new() -> Self {
+        Self { entries: Vec::new() }
+    }
+
+    fn add_timer(&mut self, deadline: u64, waker: Waker) {
+        self.entries.push(TimerEntry { deadline, waker });
+    }
+
+    fn wake_expired(&mut self, now: u64) {
+        let mut idx = 0;
+        while idx < self.entries.len() {
+            if self.entries[idx].deadline <= now {
+                let entry = self.entries.swap_remove(idx);
+                entry.waker.wake();
+            } else {
+                idx += 1;
+            }
+        }
+    }
+}
+
 static SYSTEM_TIMER: SystemTimer = SystemTimer::new();
-static TIMEWHEEL: SpinIrqLock<TimeWheel> = SpinIrqLock::new(TimeWheel::new());
+static MONOTONIC_CLOCK: SpinIrqLock<MonotonicClock> = SpinIrqLock::new(MonotonicClock::new());
+static TIMER_QUEUE: SpinIrqLock<TimerQueue> = SpinIrqLock::new(TimerQueue::new());
+
+#[inline]
+fn pm_ticks_per_ms() -> u64 {
+    pm_timer_freq() as u64
+}
+
+#[inline]
+fn ms_to_pm_ticks(ms: u64) -> u64 {
+    ms.saturating_mul(pm_ticks_per_ms()).div_ceil(1000)
+}
+
+#[inline]
+fn pm_ticks_to_ms(ticks: u64) -> u64 {
+    ticks.saturating_mul(1000) / pm_ticks_per_ms()
+}
+
+pub fn init_monotonic_clock() {
+    MONOTONIC_CLOCK.access(|clock| {
+        let now = pm_timer_tick();
+        clock.init(now);
+    });
+}
+
+pub fn monotonic_ticks() -> u64 {
+    MONOTONIC_CLOCK.access(|clock| {
+        let now = pm_timer_tick();
+        clock.sample(now)
+    })
+}
+
+pub fn monotonic_time_ms() -> u64 {
+    pm_ticks_to_ms(monotonic_ticks())
+}
+
+pub fn monotonic_deadline_after_ms(ms: u64) -> u64 {
+    monotonic_ticks().saturating_add(ms_to_pm_ticks(ms))
+}
+
+pub fn deadline_expired(deadline: u64) -> bool {
+    monotonic_ticks() >= deadline
+}
+
+pub fn add_timer(deadline: u64, waker: Option<Waker>) -> bool {
+    if deadline_expired(deadline) {
+        return false;
+    }
+    if let Some(waker) = waker {
+        TIMER_QUEUE.access(|queue| queue.add_timer(deadline, waker));
+        true
+    } else {
+        false
+    }
+}
 
 /// # Safety
 /// called by interrupt context
 pub unsafe fn tick() -> u64 {
     let tick = SYSTEM_TIMER.tick();
-    TIMEWHEEL.access(|v| v.tick(tick));
+    let now = monotonic_ticks();
+    TIMER_QUEUE.access(|queue| queue.wake_expired(now));
     tick
 }
 
 pub fn get_tick() -> u64 {
     SYSTEM_TIMER.get_tick()
-}
-
-#[derive(Default)]
-pub struct TimerEntry {
-    expire_tick: u64,
-    waker: Option<Waker>,
-}
-
-impl TimerEntry {
-    pub fn new(expire_tick: u64, waker: Option<Waker>) -> TimerEntry {
-        TimerEntry { expire_tick, waker }
-    }
-}
-
-pub struct Wheel<const N: usize> {
-    slot: [Vec<TimerEntry>; N],
-    idx: usize,
-}
-impl<const N: usize> Wheel<N> {
-    const fn new() -> Wheel<N> {
-        Self {
-            slot: [const { Vec::new() }; N],
-            idx: 0,
-        }
-    }
-    fn tick(&mut self) -> Vec<TimerEntry> {
-        let mut reinsert = Vec::new();
-        core::mem::swap(&mut reinsert, &mut self.slot[self.idx]);
-        self.idx = (self.idx + 1) % N;
-        reinsert
-    }
-}
-
-const fn slot_interval() -> [u64; 10] {
-    let mut slot: [u64; 10] = [0; 10];
-    slot[0] = 1;
-    let mut i = 1;
-    while i < 10 {
-        slot[i] = slot[i - 1] * 10;
-        i += 1;
-    }
-    slot
-}
-
-const SLOTS_TICK_INTERVAL_MS: [u64; 10] = slot_interval();
-
-struct TimeWheel {
-    slots: [Wheel<10>; 10],
-}
-
-impl TimeWheel {
-    const fn new() -> TimeWheel {
-        TimeWheel {
-            slots: [const { Wheel::new() }; 10],
-        }
-    }
-
-    // TODO: support cancel the task
-    fn add_timer(&mut self, entry: TimerEntry, current_tick: u64) {
-        let (target_slot_idx, slot_offset_idx) = SLOTS_TICK_INTERVAL_MS
-            .into_iter()
-            .enumerate()
-            .rfind(|&(_, v)| entry.expire_tick > v + current_tick)
-            .map(|(i, v)| (i, ((entry.expire_tick - current_tick - v) / v) as usize))
-            .unwrap_or((0, 0));
-        const N: usize = 10;
-        let mut offset = (slot_offset_idx + self.slots[target_slot_idx].idx) % 10;
-        self.slots[target_slot_idx].slot[offset].push(entry);
-    }
-
-    fn tick(&mut self, current_tick: u64) {
-        let reinsert = SLOTS_TICK_INTERVAL_MS
-            .into_iter()
-            .enumerate()
-            .filter(|(_, v)| current_tick.is_multiple_of(*v))
-            .flat_map(|(idx, _)| self.slots[idx].tick())
-            .filter(|entry| {
-                let reinsert = entry.expire_tick > current_tick;
-                if !reinsert {
-                    entry.waker.as_ref().inspect(|v| v.wake_by_ref());
-                }
-                reinsert
-            })
-            .collect::<Vec<_>>(); // TODO: avoid use vec collect
-
-        reinsert
-            .into_iter()
-            .for_each(|entry| self.add_timer(entry, current_tick));
-    }
-}
-
-pub fn add_timer(expire_tick: u64, waker: Option<Waker>) {
-    let tick = get_tick();
-    if tick >= expire_tick {
-        return;
-    }
-    TIMEWHEEL.access(|v| {
-        v.add_timer(TimerEntry::new(expire_tick, waker), tick);
-    })
-}
-
-
-pub fn init_timer() {
-
 }

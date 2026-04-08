@@ -1,16 +1,16 @@
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use mos_platform::timer::{add_timer, get_tick};
+use mos_platform::timer::{add_timer, deadline_expired, monotonic_deadline_after_ms};
 
 pub struct Sleep {
-    awake_tick: u64,
+    deadline: u64,
     registered: bool,
 }
 
 impl Sleep {
     pub fn new(sleep_ms: u64) -> Sleep {
         Sleep {
-            awake_tick: get_tick() + sleep_ms,
+            deadline: monotonic_deadline_after_ms(sleep_ms),
             registered: false,
         }
     }
@@ -19,13 +19,11 @@ impl Sleep {
 impl Future for Sleep {
     type Output = ();
     fn poll(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
-        let tick = get_tick();
-        if tick >= self.awake_tick {
+        if deadline_expired(self.deadline) {
             Poll::Ready(())
         } else {
             if !self.registered {
-                add_timer(self.awake_tick, Some(ctx.waker().clone()));
-                self.registered = true;
+                self.registered = add_timer(self.deadline, Some(ctx.waker().clone()));
             }
 
             Poll::Pending

@@ -1,15 +1,17 @@
+use crate::OS_HZ;
+use crate::acpi_handler::AcpiHandler;
+use crate::timer::init_monotonic_clock;
 use acpi::address::AddressSpace;
 use acpi::platform::{AcpiPlatform, InterruptModel, PmTimer};
 use acpi::{AcpiTables, Handler};
 use conquer_once::spin::OnceCell;
 use log::info;
 use mos_driver::serial_println;
+use mos_lib::KernelBootGlobal;
 use spin::Mutex;
 use x2apic::ioapic::IoApic;
 use x2apic::lapic::{LocalApic, TimerDivide, TimerMode};
 use x86_64::structures::paging::OffsetPageTable;
-use crate::acpi_handler::AcpiHandler;
-use crate::OS_HZ;
 
 fn load_tables<H: Handler>(rsdp: usize, handler: H) -> AcpiTables<H> {
     unsafe {
@@ -48,7 +50,10 @@ pub fn init(rsdp: u64, mapper: &OffsetPageTable<'static>) {
         }
         InterruptModel::Apic(apic) => {
             let pm_timer = i.pm_timer.expect("should be able to load the PM timer!");
-            let pm_timer = PmTimerWrapper::new(pm_timer);
+            unsafe {
+                PM_TIMER.init(|| PmTimerWrapper::new(pm_timer));
+            }
+            init_monotonic_clock();
 
             let lapic_addr = apic.local_apic_address;
             let ioapic_addr = apic.io_apics.first().expect("should has ioapic").address;
@@ -76,11 +81,11 @@ pub fn init(rsdp: u64, mapper: &OffsetPageTable<'static>) {
 
             unsafe {
                 lapic.enable();
-                let start = pm_timer.read();
-                while pm_timer.elapsed_since(start) < CALIBRATION_TARGET_PM_TICKS as u32 {
+                let start = pm_timer_tick();
+                while pm_timer_elapsed_since(start) < CALIBRATION_TARGET_PM_TICKS as u32 {
                     core::hint::spin_loop();
                 }
-                let pm_duration = pm_timer.elapsed_since(start);
+                let pm_duration = pm_timer_elapsed_since(start);
                 let lapic_timer_current = lapic.timer_current();
                 let lapic_duration = CALIBRATION_TIMER_INITIAL - lapic_timer_current;
                 // lapic timer start -> pm_timer start -> pm_timer stop -> lapic timer stop
@@ -167,4 +172,31 @@ impl PmTimerWrapper {
         let now = self.read();
         self.elapsed(start, now)
     }
+}
+
+static PM_TIMER: KernelBootGlobal<PmTimerWrapper> = KernelBootGlobal::uninit();
+
+#[inline]
+pub fn pm_timer_tick() -> u32 {
+    unsafe { PM_TIMER.get().read() }
+}
+
+#[inline]
+pub const fn pm_timer_freq() -> u32 {
+    PM_TIMER_HZ as u32
+}
+
+#[inline]
+pub fn pm_timer_mask() -> u32 {
+    unsafe { PM_TIMER.get().mask() }
+}
+
+#[inline]
+pub fn pm_timer_elapsed_since(tick: u32) -> u32 {
+    unsafe { PM_TIMER.get().elapsed_since(tick) }
+}
+
+#[inline]
+pub fn pm_timer_tick_to_ms(tick_dura: u32) -> u32 {
+    tick_dura * 1000 / pm_timer_freq()
 }
