@@ -124,10 +124,11 @@ pub fn build_image(
     ) -> Result<String, Box<dyn Error>> {
         info!("Building kernel");
         let mut cmd = Command::new("cargo");
-        cmd.current_dir(kernel_name)
-            .args(["build", &format!("--{}", profile.as_str())])
-            .arg("--no-default-features")
-            .arg("--features");
+        cmd.current_dir(kernel_name).arg("build");
+        if let Profile::Release = profile {
+            cmd.arg("--release");
+        }
+        cmd.arg("--no-default-features").arg("--features");
         let boot_mode = boot_mode.unwrap_or(BootMode::Uefi);
 
         match boot_mode {

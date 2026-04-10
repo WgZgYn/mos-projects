@@ -7,6 +7,7 @@ mod tree;
 use crate::thread::{IDLE, REAPER, ThreadControlBlock, ThreadStateValue};
 use crate::traits::{ReadyQueue, SchedStrategy};
 use alloc::collections::VecDeque;
+use alloc::vec::Vec;
 use core::arch::asm;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -76,13 +77,8 @@ impl<S: SchedStrategy> Scheduler<S> {
         self.reaper = Some(REAPER.clone());
     }
 
-    pub fn clean_exits(&mut self, mut handler: impl FnMut(KRef<ThreadControlBlock>)) {
-        while !self.exits.is_empty() {
-            let t = self.exits.pop_front();
-            if let Some(t) = t {
-                handler(t);
-            }
-        }
+    pub fn clean_exits(&mut self) -> Vec<KRef<ThreadControlBlock>> {
+        self.exits.drain(..).collect()
     }
 
     /// before call this function, the thread state must already be set
@@ -158,14 +154,14 @@ pub fn get_preempt_count() -> usize {
 }
 
 pub fn schedule() {
-    let mut preempt = SCHEDULER.lock();
-    let Some(new) = preempt.schedule() else {
+    let mut guard = SCHEDULER.lock();
+    let Some(new) = guard.schedule() else {
         return;
     };
-    let old = preempt.current.clone();
-    preempt.current = new.clone();
+    let old = guard.current.clone();
+    guard.current = new.clone();
     new.set_state(ThreadStateValue::Running);
-    drop(preempt);
+    drop(guard);
     Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
 }
 
@@ -195,39 +191,30 @@ fn schedule_and_switch<T: SchedStrategy>(mut guard: SpinIrqLockGuard<Scheduler<T
 }
 
 pub fn wake_blocked_task(provider: impl IntoIterator<Item = KRef<ThreadControlBlock>>) {
-    let mut preempt = SCHEDULER.lock();
+    let mut guard = SCHEDULER.lock();
     for task in provider.into_iter() {
         if task
             .trans_state(ThreadStateValue::Blocked, ThreadStateValue::Ready)
             .is_ok()
         {
-            preempt.enqueue_task(task);
+            guard.enqueue_task(task);
         }
     }
 }
 
-pub fn park_current<L>(register: impl FnOnce(KRef<ThreadControlBlock>) -> ParkDecision<L>) {
-    let preempt = SCHEDULER.lock();
-    let current = preempt.current_tcb();
-    match register(current.clone()) {
-        ParkDecision::Park(lock) => {
-            current.set_state(ThreadStateValue::Blocked);
-            drop(lock);
-            schedule_and_switch(preempt);
-        }
-        ParkDecision::Unpark => {}
-    };
+pub fn park_current<L>(register: impl FnOnce(&KRef<ThreadControlBlock>) -> ParkDecision<L>) {
+    park_with_scheduler(|s| register(&s.current))
 }
 
 pub fn park_with_scheduler<L>(
     register: impl FnOnce(&mut Scheduler<ScheduleStrategyImpl>) -> ParkDecision<L>,
 ) {
-    let mut preempt = SCHEDULER.lock();
-    match register(preempt.deref_mut()) {
+    let mut guard = SCHEDULER.lock();
+    match register(guard.deref_mut()) {
         ParkDecision::Park(lock) => {
-            preempt.current.set_state(ThreadStateValue::Blocked);
+            guard.current.set_state(ThreadStateValue::Blocked);
             drop(lock);
-            schedule_and_switch(preempt);
+            schedule_and_switch(guard);
         }
         ParkDecision::Unpark => {}
     };
@@ -236,11 +223,11 @@ pub fn park_with_scheduler<L>(
 pub fn exit_current() -> ! {
     let task = current_tcb();
     assert_eq!(task.get_state(), ThreadStateValue::Running);
-    let preempt = SCHEDULER.lock();
+    let guard = SCHEDULER.lock();
     task.set_state(ThreadStateValue::Zombied);
     task.process.clean_exit_thread(task.tid);
     drop(task);
-    schedule_and_switch(preempt);
+    schedule_and_switch(guard);
     unreachable!("return from exit_current_task");
 }
 
@@ -252,6 +239,9 @@ impl KWake for ThreadControlBlock {
 
 pub fn scheduler_debug_info(tf: Option<&InterruptStackFrame>) {
     info!("current running task: {:?}", current_tcb().tid);
+    // SCHEDULER
+    //     .deref()
+    //     .access(|s| info!("scheduler queue: {:?}", s.ready_queue));
     if let Some(f) = tf {
         info!("rip: {:0x?}", f.instruction_pointer);
         info!("rsp: {:0x?}", f.stack_pointer);

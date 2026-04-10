@@ -170,7 +170,7 @@ pub fn sys_spawn() -> isize {
 pub fn sys_sleep(ms: u64) {
     let deadline = monotonic_deadline_after_ms(ms);
     park_current(|task| {
-        if add_timer(deadline, Some(Waker::from(task))) {
+        if add_timer(deadline, Some(Waker::from(task.clone()))) {
             ParkDecision::Park(())
         } else {
             ParkDecision::Unpark
@@ -202,7 +202,7 @@ pub fn sys_wait(pid: u64) -> i32 {
                 ok = true;
                 ParkDecision::Unpark
             } else {
-                queue.wait_task(task);
+                queue.wait_task(task.clone());
                 ParkDecision::Park(queue)
             }
         });
@@ -240,15 +240,12 @@ pub fn sys_wait(pid: u64) -> i32 {
 }
 
 pub fn sys_exit(exit_code: i32) -> ! {
-    {
-        let current = current_tcb();
-        let shared = &current.process.shared;
-        let mut queue = shared.wait_queue.lock();
-        let tasks = queue.wake_all();
-        wake_blocked_task(tasks);
-        shared.exit_code.store(exit_code, Ordering::Release);
-        shared.exited.store(true, Ordering::Release);
-    }
+    let current = current_tcb();
+    let shared = &current.process.shared;
+    shared.exited.store(true, Ordering::Release);
+    shared.exit_code.store(exit_code, Ordering::Release);
+    wake_blocked_task(shared.wait_queue.lock().wake_all());
+    drop(current);
     exit_current();
 }
 

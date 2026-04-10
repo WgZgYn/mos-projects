@@ -46,7 +46,7 @@ impl<T> Mutex<T> {
                 let mut queue = self.wait_queue.lock();
                 park_current(|task| {
                     if self.lock.load(Ordering::Acquire) {
-                        queue.wait_task(task);
+                        queue.wait_task(task.clone());
                         ParkDecision::Park(queue)
                     } else {
                         ParkDecision::Unpark

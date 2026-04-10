@@ -72,7 +72,7 @@ impl ScancodeSyncStream {
                 if has_key_code() {
                     ParkDecision::Unpark
                 } else {
-                    WAKER.register(&Waker::from(task));
+                    WAKER.register(&Waker::from(task.clone()));
                     ParkDecision::Park(())
                 }
             })

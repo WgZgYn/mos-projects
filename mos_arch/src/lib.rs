@@ -81,6 +81,10 @@ pub fn soft_interrupt<const N: u8>() {
     unsafe { x86_64::instructions::interrupts::software_interrupt::<N>() }
 }
 
+pub fn breakpoint() {
+    x86_64::instructions::interrupts::int3();
+}
+
 pub fn is_enable_interrupts() -> bool {
     x86_64::instructions::interrupts::are_enabled()
 }

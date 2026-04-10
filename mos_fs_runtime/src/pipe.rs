@@ -80,7 +80,7 @@ impl StreamOps for PipeInode {
             }
 
             park_current(|task| {
-                inner.read_queue.wait_task(task);
+                inner.read_queue.wait_task(task.clone());
                 ParkDecision::Park(inner)
             });
             // we need recheck to prevent wake from other's open
@@ -106,7 +106,7 @@ impl StreamOps for PipeInode {
             }
 
             park_current(|task| {
-                inner.write_queue.wait_task(task);
+                inner.write_queue.wait_task(task.clone());
                 ParkDecision::Park(inner)
             })
             // we need recheck to prevent wake from other's open
@@ -166,7 +166,7 @@ impl Inode for FifoInode {
                     return Ok(());
                 }
                 park_current(|task| {
-                    inner.read_queue.wait_task(task);
+                    inner.read_queue.wait_task(task.clone());
                     ParkDecision::Park(inner)
                 });
             },
@@ -177,7 +177,7 @@ impl Inode for FifoInode {
                     return Ok(());
                 }
                 park_current(|task| {
-                    inner.write_queue.wait_task(task);
+                    inner.write_queue.wait_task(task.clone());
                     ParkDecision::Park(inner)
                 });
             },
