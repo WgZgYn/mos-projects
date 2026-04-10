@@ -1,4 +1,4 @@
-use crate::scheduler::{park_current, wake_blocked_task, ParkDecision};
+use crate::scheduler::{ParkDecision, park_current, wake_blocked_task};
 use crate::wait_queue::WaitQueue;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
@@ -46,8 +46,8 @@ impl<T> Mutex<T> {
                 let mut queue = self.wait_queue.lock();
                 park_current(|task| {
                     if self.lock.load(Ordering::Acquire) {
-                        queue.wait_task(task);
-                        ParkDecision::Park
+                        queue.wait_task(task.clone());
+                        ParkDecision::Park(queue)
                     } else {
                         ParkDecision::Unpark
                     }

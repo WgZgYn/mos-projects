@@ -1,6 +1,6 @@
 use crate::preempt_session::PreemptSpinLock;
 use crate::process::{KERNEL, KernelStack, ProcessControlBlock};
-use crate::scheduler::{ParkDecision, park_with_scheduler};
+use crate::scheduler::{ParkDecision, SCHEDULER, park_with_scheduler};
 use core::cell::UnsafeCell;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering};
@@ -30,23 +30,14 @@ pub fn sti_hlt_loop() -> ! {
 pub fn reaper() -> ! {
     info!("[REAPER]: first running with {:?}", REAPER.tid);
     loop {
-        // SCHEDULER.access(|s| {
-        //     let mut s = s.lock();
-        //     s.clean_exits(|t| {
-        //         info!("[REAPER]: try to drop thread: {:?}", t.tid);
-        //     });
-        //     s.block_reaper();
-        //     drop(s);
-        //     schedule();
-        // });
-
+        let tasks = SCHEDULER.lock().clean_exits();
+        for task in tasks {
+            info!("[REAPER]: drop task {:?}", task.tid);
+        }
         park_with_scheduler(|s| {
-            s.clean_exits(|t| {
-                info!("[REAPER]: drop thread: {:?}", t.tid);
-            });
             s.block_reaper();
-            ParkDecision::Park
-        })
+            ParkDecision::Park(())
+        });
     }
 }
 

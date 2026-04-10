@@ -3,6 +3,7 @@ use core::arch::global_asm;
 
 global_asm!(
     "
+.globl __full_context_intr_exit
 __full_context_intr_exit:
     pop r15
     pop r14
@@ -27,6 +28,8 @@ __full_context_intr_exit:
 
 global_asm!(
     "
+.globl __switch_context
+.globl __switch_to
 __switch_context:
     pushfq
     pop qword ptr [rdi + 0x38]
@@ -152,6 +155,7 @@ macro_rules! register_syscall {
         core::arch::global_asm!(
             concat!(
             "
+            .globl __syscall_entry
             __syscall_entry:
             ",
             "cld",

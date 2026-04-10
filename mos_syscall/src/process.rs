@@ -170,8 +170,8 @@ pub fn sys_spawn() -> isize {
 pub fn sys_sleep(ms: u64) {
     let deadline = monotonic_deadline_after_ms(ms);
     park_current(|task| {
-        if add_timer(deadline, Some(Waker::from(task))) {
-            ParkDecision::Park
+        if add_timer(deadline, Some(Waker::from(task.clone()))) {
+            ParkDecision::Park(())
         } else {
             ParkDecision::Unpark
         }
@@ -196,13 +196,14 @@ pub fn sys_wait(pid: u64) -> i32 {
 
     loop {
         let mut ok = false;
+        let mut queue = child.wait_queue.lock();
         park_current(|task| {
             if child.exited.load(Ordering::Acquire) {
                 ok = true;
                 ParkDecision::Unpark
             } else {
-                child.wait_queue.lock().wait_task(task);
-                ParkDecision::Park
+                queue.wait_task(task.clone());
+                ParkDecision::Park(queue)
             }
         });
         if ok {
