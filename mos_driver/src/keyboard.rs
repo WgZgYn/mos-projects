@@ -73,7 +73,7 @@ impl ScancodeSyncStream {
                     ParkDecision::Unpark
                 } else {
                     WAKER.register(&Waker::from(task));
-                    ParkDecision::Park
+                    ParkDecision::Park(())
                 }
             })
         }

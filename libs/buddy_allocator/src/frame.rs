@@ -52,6 +52,12 @@ impl<const ORDER: usize, A: Allocator + Clone> FrameAllocator<ORDER, A> {
     }
 }
 
+impl<const ORDER: usize> Default for FrameAllocator<ORDER> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const ORDER: usize> FrameAllocator<ORDER> {
     /// Create an empty frame allocator
     pub const fn new() -> Self {
@@ -206,6 +212,12 @@ pub struct LockedFrameAllocator<const ORDER: usize = 32, A: Allocator + Clone = 
 );
 
 #[cfg(feature = "use_spin")]
+impl<const ORDER: usize> Default for LockedFrameAllocator<ORDER> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const ORDER: usize> LockedFrameAllocator<ORDER> {
     /// Creates an empty heap
     pub const fn new() -> Self {
@@ -228,4 +240,18 @@ impl<const ORDER: usize, A: Allocator + Clone> Deref for LockedFrameAllocator<OR
     fn deref(&self) -> &Mutex<FrameAllocator<ORDER, A>> {
         &self.0
     }
+}
+
+mod tests {
+    #[test]
+    fn test_buddy_allocator() {
+        let mut allocator = crate::FrameAllocator::<32>::new();
+        allocator.insert(0..10);
+        for _ in 0..10 {
+            assert!(allocator.alloc(1).is_some());
+        }
+        assert!(allocator.alloc(1).is_none());
+    }
+
+
 }

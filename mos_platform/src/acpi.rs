@@ -3,6 +3,7 @@ use crate::acpi_handler::AcpiHandler;
 use crate::timer::init_monotonic_clock;
 use acpi::address::AddressSpace;
 use acpi::platform::{AcpiPlatform, InterruptModel, PmTimer};
+use acpi::sdt::madt::Madt;
 use acpi::{AcpiTables, Handler};
 use conquer_once::spin::OnceCell;
 use log::info;
@@ -43,6 +44,12 @@ pub fn init(rsdp: u64, mapper: &OffsetPageTable<'static>) {
     i.tables.ssdts().for_each(|table| {
         serial_println!("{:?}", table);
     });
+
+    let madt = i.tables.find_table::<Madt>();
+    if let Some(madt) = madt {
+        let p = madt.get();
+        info!("{:x?}", p);
+    }
 
     match i.interrupt_model {
         InterruptModel::Unknown => {

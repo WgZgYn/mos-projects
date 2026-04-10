@@ -670,6 +670,7 @@ dependencies = [
 name = "ktests"
 version = "0.1.0"
 dependencies = [
+ "buddy_allocator",
  "mem_fs",
 ]
 

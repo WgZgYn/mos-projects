@@ -45,7 +45,7 @@ pub fn reaper() -> ! {
                 info!("[REAPER]: drop thread: {:?}", t.tid);
             });
             s.block_reaper();
-            ParkDecision::Park
+            ParkDecision::Park(())
         })
     }
 }

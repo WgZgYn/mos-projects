@@ -1,4 +1,4 @@
-use crate::scheduler::{park_current, wake_blocked_task, ParkDecision};
+use crate::scheduler::{ParkDecision, park_current, wake_blocked_task};
 use crate::wait_queue::WaitQueue;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
@@ -47,7 +47,7 @@ impl<T> Mutex<T> {
                 park_current(|task| {
                     if self.lock.load(Ordering::Acquire) {
                         queue.wait_task(task);
-                        ParkDecision::Park
+                        ParkDecision::Park(queue)
                     } else {
                         ParkDecision::Unpark
                     }

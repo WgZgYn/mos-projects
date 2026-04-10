@@ -16,16 +16,15 @@ use log::info;
 use mos_arch::asm::__switch_context;
 use mos_arch::gdt::write_rsp0;
 use mos_arch::percpu::update_per_cpu;
-use mos_arch::sync::IrqLocked;
+use mos_arch::sync::{SpinIrqLock, SpinIrqLockGuard};
 use mos_lib::sync::{KRef, KWake};
-use spin::MutexGuard;
 use x86_64::structures::idt::InterruptStackFrame;
 
 type ScheduleStrategyImpl = cfs::CfsScheduleStrategy;
 
 lazy_static! {
-    pub static ref SCHEDULER: IrqLocked<spin::Mutex<Scheduler<ScheduleStrategyImpl>>> =
-        unsafe { IrqLocked::new(spin::Mutex::new(Scheduler::new())) };
+    pub static ref SCHEDULER: SpinIrqLock<Scheduler<ScheduleStrategyImpl>> =
+        SpinIrqLock::new(Scheduler::new());
 }
 
 static PREEMPT_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -132,8 +131,8 @@ impl<S: SchedStrategy> Scheduler<S> {
     }
 }
 
-pub enum ParkDecision {
-    Park,
+pub enum ParkDecision<L> {
+    Park(L),
     Unpark,
 }
 
@@ -159,17 +158,15 @@ pub fn get_preempt_count() -> usize {
 }
 
 pub fn schedule() {
-    SCHEDULER.access(|irq_session| {
-        let mut guard = irq_session.lock();
-        let Some(new) = guard.schedule() else {
-            return;
-        };
-        let old = guard.current.clone();
-        guard.current = new.clone();
-        new.set_state(ThreadStateValue::Running);
-        drop(guard);
-        Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
-    });
+    let mut preempt = SCHEDULER.lock();
+    let Some(new) = preempt.schedule() else {
+        return;
+    };
+    let old = preempt.current.clone();
+    preempt.current = new.clone();
+    new.set_state(ThreadStateValue::Running);
+    drop(preempt);
+    Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
 }
 
 pub fn first_schedule() -> ! {
@@ -183,10 +180,10 @@ pub fn first_schedule() -> ! {
 }
 
 pub fn current_tcb() -> KRef<ThreadControlBlock> {
-    SCHEDULER.access(|s| s.lock().current_tcb().clone())
+    SCHEDULER.lock().current_tcb().clone()
 }
 
-fn schedule_and_switch<T: SchedStrategy>(mut guard: MutexGuard<Scheduler<T>>) {
+fn schedule_and_switch<T: SchedStrategy>(mut guard: SpinIrqLockGuard<Scheduler<T>>) {
     let Some(new) = guard.schedule() else {
         return;
     };
@@ -198,57 +195,52 @@ fn schedule_and_switch<T: SchedStrategy>(mut guard: MutexGuard<Scheduler<T>>) {
 }
 
 pub fn wake_blocked_task(provider: impl IntoIterator<Item = KRef<ThreadControlBlock>>) {
-    SCHEDULER.access(|irq_session| {
-        let mut guard = irq_session.lock();
-        for task in provider.into_iter() {
-            if task
-                .trans_state(ThreadStateValue::Blocked, ThreadStateValue::Ready)
-                .is_ok()
-            {
-                guard.enqueue_task(task);
-            }
+    let mut preempt = SCHEDULER.lock();
+    for task in provider.into_iter() {
+        if task
+            .trans_state(ThreadStateValue::Blocked, ThreadStateValue::Ready)
+            .is_ok()
+        {
+            preempt.enqueue_task(task);
         }
-    });
+    }
 }
 
-pub fn park_current(register: impl FnOnce(KRef<ThreadControlBlock>) -> ParkDecision) {
-    SCHEDULER.access(|irq_session| {
-        let guard = irq_session.lock();
-        let current = guard.current_tcb();
-        match register(current.clone()) {
-            ParkDecision::Park => {
-                current.set_state(ThreadStateValue::Blocked);
-                schedule_and_switch(guard);
-            }
-            ParkDecision::Unpark => {}
-        };
-    });
+pub fn park_current<L>(register: impl FnOnce(KRef<ThreadControlBlock>) -> ParkDecision<L>) {
+    let preempt = SCHEDULER.lock();
+    let current = preempt.current_tcb();
+    match register(current.clone()) {
+        ParkDecision::Park(lock) => {
+            current.set_state(ThreadStateValue::Blocked);
+            drop(lock);
+            schedule_and_switch(preempt);
+        }
+        ParkDecision::Unpark => {}
+    };
 }
 
-pub fn park_with_scheduler(
-    register: impl FnOnce(&mut Scheduler<ScheduleStrategyImpl>) -> ParkDecision,
+pub fn park_with_scheduler<L>(
+    register: impl FnOnce(&mut Scheduler<ScheduleStrategyImpl>) -> ParkDecision<L>,
 ) {
-    SCHEDULER.access(|irq_session| {
-        let mut guard = irq_session.lock();
-        match register(guard.deref_mut()) {
-            ParkDecision::Park => {
-                guard.current.set_state(ThreadStateValue::Blocked);
-                schedule_and_switch(guard);
-            }
-            ParkDecision::Unpark => {}
-        };
-    });
+    let mut preempt = SCHEDULER.lock();
+    match register(preempt.deref_mut()) {
+        ParkDecision::Park(lock) => {
+            preempt.current.set_state(ThreadStateValue::Blocked);
+            drop(lock);
+            schedule_and_switch(preempt);
+        }
+        ParkDecision::Unpark => {}
+    };
 }
 
 pub fn exit_current() -> ! {
     let task = current_tcb();
     assert_eq!(task.get_state(), ThreadStateValue::Running);
-    SCHEDULER.access(|irq_session| {
-        let guard = irq_session.lock();
-        task.set_state(ThreadStateValue::Zombied);
-        task.process.clean_exit_thread(task.tid);
-        schedule_and_switch(guard);
-    });
+    let preempt = SCHEDULER.lock();
+    task.set_state(ThreadStateValue::Zombied);
+    task.process.clean_exit_thread(task.tid);
+    drop(task);
+    schedule_and_switch(preempt);
     unreachable!("return from exit_current_task");
 }
 
@@ -260,9 +252,6 @@ impl KWake for ThreadControlBlock {
 
 pub fn scheduler_debug_info(tf: Option<&InterruptStackFrame>) {
     info!("current running task: {:?}", current_tcb().tid);
-    // SCHEDULER
-    //     .deref()
-    //     .access(|s| info!("scheduler queue: {:?}", s.ready_queue));
     if let Some(f) = tf {
         info!("rip: {:0x?}", f.instruction_pointer);
         info!("rsp: {:0x?}", f.stack_pointer);
