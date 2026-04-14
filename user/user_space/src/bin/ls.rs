@@ -9,7 +9,7 @@ use user_lib::{getdents, open, println};
 fn main() -> i32 {
     let current_dir =
         open(c"./", OpenFlags::READ | OpenFlags::DIRECTORY).expect("should open directory");
-    let mut buffer = [const { MaybeUninit::<UserDirEntry>::uninit() }; 32];
+    let mut buffer = [const { MaybeUninit::<UserDirEntry>::uninit() }; 64];
     unsafe {
         let ptr = buffer.as_mut_ptr().cast::<UserDirEntry>();
         let len = buffer.len();
