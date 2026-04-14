@@ -269,9 +269,9 @@ impl RamFs {
                     info!("alloc frame at page3[{}][{}], frame: {:?}", i1, i2, frame);
                 }
                 let level2_frame_idx = self[level1_frame_idx].as_frame_ptrs()[i2].unwrap();
-                if self[level2_frame_idx].as_frame_ptrs()[i2].is_none() {
+                if self[level2_frame_idx].as_frame_ptrs()[i3].is_none() {
                     let frame = self.alloc_ones_frame()?;
-                    self[level2_frame_idx].as_frame_ptrs_mut()[i2].emplace(frame);
+                    self[level2_frame_idx].as_frame_ptrs_mut()[i3].emplace(frame);
                     info!(
                         "alloc frame at page3[{}][{}][{}], frame: {:?}",
                         i1, i2, i3, frame
