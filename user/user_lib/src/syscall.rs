@@ -111,3 +111,9 @@ pub fn sys_pipe(addr: &mut [i32; 2]) -> i32 {
 pub fn sys_mkfifo(path: &CStr) -> isize {
     syscall(Syscall::Mkfifo as _, [path.as_ptr() as _, 0, 0]) as _
 }
+pub fn sys_dup(fd: u32) -> isize {
+    syscall(Syscall::Dup as _, [fd as _, 0, 0]) as _
+}
+pub fn sys_dup2(src_fd: u32, dst_fd: u32) -> isize {
+    syscall(Syscall::DupTo as _, [src_fd as _, dst_fd as _, 0]) as _
+}

@@ -21,6 +21,7 @@ use mos_abi::syscall::Syscall;
 use mos_arch::register_syscall;
 use mos_arch::structs::SyscallContext;
 use mos_lib::align::{align_up, is_aligned};
+use mos_task::current_tcb;
 use vfs_common::UserDirEntry;
 use x86_64::VirtAddr;
 use x86_64::structures::paging::Page;
@@ -36,6 +37,7 @@ pub mod task;
 /// return: rax
 /// rip: rcx
 /// rflags: r11
+#[inline(never)]
 pub fn syscall(context: &mut SyscallContext) {
     let syscall_id = context.scratch.rax;
     let args = [
@@ -158,6 +160,26 @@ pub fn syscall(context: &mut SyscallContext) {
                     info!("sys_chdir: {:?}", e);
                     context.scratch.rax = u64::MAX
                 }
+            }
+        }
+        Syscall::Dup => {
+            let fd = FileDesc(args[0] as usize);
+            let tcb = current_tcb();
+            let files = &tcb.process.files;
+            match files.lock().dup(fd) {
+                None => context.scratch.rax = u64::MAX,
+                Some(fd) => context.scratch.rax = fd.0 as _,
+            }
+        }
+        Syscall::DupTo => {
+            let src = FileDesc(args[0] as usize);
+            let dst = FileDesc(args[1] as usize);
+            let tcb = current_tcb();
+            let files = &tcb.process.files;
+            if files.lock().dup_to(src, dst) {
+                context.scratch.rax = 0;
+            } else {
+                context.scratch.rax = u64::MAX;
             }
         }
         _ => {

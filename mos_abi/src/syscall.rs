@@ -22,6 +22,9 @@ pub enum Syscall {
     // schedule
     Yield = 24,
 
+    Dup = 32,
+    DupTo = 33,
+
     // Process
     Clone = 56,
     Fork = 57,

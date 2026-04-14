@@ -106,6 +106,18 @@ impl FileTable {
     pub fn get(&self, file: FileDesc) -> Option<&Arc<File>> {
         self.slab.get(file.0)
     }
+    pub fn dup(&mut self, file: FileDesc) -> Option<FileDesc> {
+        self.get(file).cloned().map(|f| self.insert_arc(f))
+    }
+    /// This only allow dup to already exist fd
+    pub fn dup_to(&mut self, src: FileDesc, dst: FileDesc) -> bool {
+        if let Some((src, dst)) = self.slab.get2_mut(src.0, dst.0) {
+            *dst = src.clone();
+            true
+        } else {
+            false
+        }
+    }
     pub fn len(&self) -> usize {
         self.slab.len()
     }

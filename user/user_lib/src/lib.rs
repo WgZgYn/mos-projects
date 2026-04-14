@@ -7,9 +7,9 @@ mod os;
 mod syscall;
 
 use crate::syscall::{
-    sys_brk, sys_chdir, sys_close, sys_execve, sys_exit, sys_fork, sys_getdents, sys_mkfifo,
-    sys_mmap, sys_munmap, sys_open, sys_pipe, sys_rand, sys_read, sys_sleep, sys_wait, sys_write,
-    sys_yield,
+    sys_brk, sys_chdir, sys_close, sys_dup, sys_dup2, sys_execve, sys_exit, sys_fork, sys_getdents,
+    sys_mkfifo, sys_mmap, sys_munmap, sys_open, sys_pipe, sys_rand, sys_read, sys_sleep, sys_wait,
+    sys_write, sys_yield,
 };
 use core::arch::global_asm;
 use core::ffi::{CStr, c_char};
@@ -238,4 +238,17 @@ pub fn pipe() -> Option<Pipe> {
 
 pub fn mkfifo(path: &CStr) -> VfsResult<()> {
     isize_to_vfs_result(sys_mkfifo(path)).map(|_| ())
+}
+pub fn dup(fd: FileDesc) -> Option<FileDesc> {
+    let ret = sys_dup(fd.0 as _);
+    if ret >= 0 {
+        Some(FileDesc(ret as _))
+    } else {
+        None
+    }
+}
+
+pub fn dup2(src: FileDesc, dst: FileDesc) -> bool {
+    let ret = sys_dup2(src.0 as _, dst.0 as _);
+    ret == 0
 }
