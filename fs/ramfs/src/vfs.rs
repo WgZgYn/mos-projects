@@ -28,7 +28,7 @@ pub struct FsNode {
 
 impl FileOps for FsNode {
     fn read_at(&self, offset: usize, buf: &mut [u8]) -> Result<usize, VfsError> {
-        let fs = self.fs.lock();
+        let fs = self.fs.read();
         let index = self.idx;
         let inode = &fs[index];
         let mut cursor = offset;
@@ -36,10 +36,12 @@ impl FileOps for FsNode {
             return Ok(0);
         }
         let total_available = (inode.size as usize - cursor).min(buf.len());
+        drop(fs);
         let mut read_total = 0;
         while read_total < total_available {
             let frame_idx = cursor / RAMFS_FRAME_SIZE_BYTE;
             let offset = cursor % RAMFS_FRAME_SIZE_BYTE;
+            let fs = self.fs.read();
             let frame_idx = fs
                 .get_inode_nth_frame(index, frame_idx)
                 .to_option()
@@ -48,7 +50,9 @@ impl FileOps for FsNode {
             let frame_remain = RAMFS_FRAME_SIZE_BYTE - offset;
             let remaining = total_available - read_total;
             let n = frame_remain.min(remaining);
-            buf[read_total..read_total + n].copy_from_slice(&frame[offset..offset + n]);
+            let data = frame[offset..offset + n].to_vec();
+            drop(fs);
+            buf[read_total..read_total + n].copy_from_slice(&data);
             cursor += n;
             read_total += n;
         }
@@ -56,19 +60,20 @@ impl FileOps for FsNode {
     }
 
     fn write_at(&self, offset: usize, mut buf: &[u8]) -> Result<usize, VfsError> {
-        let mut fs = self.fs.lock();
         let index = self.idx;
         let mut cursor = offset;
         let mut total_written = 0;
         while !buf.is_empty() {
             let frame_nth = cursor / RAMFS_FRAME_SIZE_BYTE;
             let offset = cursor % RAMFS_FRAME_SIZE_BYTE;
+            let writable = (RAMFS_FRAME_SIZE_BYTE - offset).min(buf.len());
+            let data = buf[..writable].to_vec();
+            let mut fs = self.fs.write();
             let frame_idx = fs
                 .get_or_init_inode_nth_frame(index, frame_nth)
                 .map_err(|_| VfsError::NoSpace)?;
             let frame = &mut fs[frame_idx];
-            let writable = (RAMFS_FRAME_SIZE_BYTE - offset).min(buf.len());
-            frame[offset..offset + writable].copy_from_slice(&buf[..writable]);
+            frame[offset..offset + writable].copy_from_slice(&data);
             let inode = &mut fs[index];
             cursor += writable;
             total_written += writable;
@@ -84,7 +89,7 @@ impl FileOps for FsNode {
 impl DirOps for FsNode {
     fn lookup(&self, name: &str) -> Result<Arc<dyn Inode>, VfsError> {
         self.fs
-            .lock()
+            .read()
             .dir_items_from_idx(self.idx)
             .map_err(|_| VfsError::NotDir)?
             .iter()
@@ -119,7 +124,7 @@ impl DirOps for FsNode {
         };
         info!("[RAMFS] create file {:?}", file_type);
 
-        let mut fs = self.fs.lock();
+        let mut fs = self.fs.write();
 
         let inode_idx = fs
             .new_inode(name, file_type, parent_inode_idx)
@@ -186,13 +191,13 @@ impl Inode for FsNode {
     }
 
     fn file_size(&self) -> u64 {
-        let fs = self.fs.lock();
+        let fs = self.fs.read();
         let index = self.idx;
         let inode = &fs[index];
         inode.size
     }
     fn file_type(&self) -> vfs_common::FileType {
-        let ft = self.fs.lock()[self.idx].file_type;
+        let ft = self.fs.read()[self.idx].file_type;
         match ft {
             FileType::File => vfs_common::FileType::Regular,
             FileType::Directory => vfs_common::FileType::Directory,
@@ -201,7 +206,7 @@ impl Inode for FsNode {
         }
     }
     fn parent(&self) -> VfsResult<Option<Arc<dyn Inode>>> {
-        let parent = self.fs.lock()[self.idx].parent;
+        let parent = self.fs.read()[self.idx].parent;
         if parent == self.idx {
             return Ok(None);
         }
@@ -214,7 +219,7 @@ impl Inode for FsNode {
         Ok(self)
     }
     fn as_dir_ops(&self) -> VfsResult<&dyn DirOps> {
-        let inode = &self.fs.lock()[self.idx];
+        let inode = &self.fs.read()[self.idx];
         if inode.file_type == FileType::Directory {
             Ok(self)
         } else {
