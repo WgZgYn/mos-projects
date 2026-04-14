@@ -7,7 +7,7 @@ use alloc::collections::BTreeMap;
 use alloc::sync::Weak;
 use core::ops::Deref;
 use log::{info, warn};
-use spin::Mutex;
+use spin::{Mutex, RwLock};
 use vfs_traits::Inode;
 
 const fn align_up(addr: u64, align: u64) -> u64 {
@@ -21,7 +21,7 @@ const fn is_aligned(addr: u64, align: u64) -> bool {
 }
 
 pub struct RamFsManager<'a> {
-    pub access: Mutex<&'a mut RamFs>,
+    pub access: RwLock<&'a mut RamFs>,
     pub inodes: Mutex<BTreeMap<InodeIndex, Weak<dyn Inode>>>,
 }
 
@@ -51,7 +51,7 @@ impl<'a> RamFsManager<'a> {
     pub fn load(meta: &'a mut [u8]) -> Result<Self, FileSystemError> {
         let ramfs = Self::check_load(meta)?;
         Ok(Self {
-            access: Mutex::new(ramfs),
+            access: RwLock::new(ramfs),
             inodes: Mutex::new(BTreeMap::new()),
         })
     }
@@ -110,14 +110,14 @@ impl<'a> RamFsManager<'a> {
             .map_err(|_| FileSystemError::BuildError)?;
 
         Ok(Self {
-            access: Mutex::new(header),
+            access: RwLock::new(header),
             inodes: Mutex::new(BTreeMap::new()),
         })
     }
 }
 
 impl<'a> Deref for RamFsManager<'a> {
-    type Target = Mutex<&'a mut RamFs>;
+    type Target = RwLock<&'a mut RamFs>;
     fn deref(&self) -> &Self::Target {
         &self.access
     }
