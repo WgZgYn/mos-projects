@@ -42,13 +42,13 @@ impl<'a, 'b> Drop for FsTransaction<'a, 'b> {
             match node.take() {
                 // make it unused
                 None => {
-                    let t = self.header.lock().free_inode(*idx);
+                    let t = self.header.write().free_inode(*idx);
                     if let Err(e) = t {
                         error!("{}", e.as_str())
                     }
                 }
                 // rollback
-                Some(node) => self.header.lock()[*idx] = node,
+                Some(node) => self.header.write()[*idx] = node,
             }
         }
     }
