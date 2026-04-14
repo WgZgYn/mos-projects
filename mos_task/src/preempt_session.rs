@@ -56,3 +56,7 @@ impl<'a, T> DerefMut for PreemptSpinLockGuard<'a, T> {
         self.0.deref_mut()
     }
 }
+
+pub fn without_preempt<R, F: FnOnce() -> R>(f: F) -> R {
+    PreemptDisabled::new(()).access(|_| f())
+}
