@@ -1,23 +1,21 @@
 #![no_std]
 
+use crate::asm::syscall_entry_point;
+use crate::cpu_info::CpuId;
+use crate::gdt::Selectors;
 use crate::structs::FpuState;
 use core::arch::asm;
 use core::arch::x86_64::_rdtsc;
-use core::ops::Deref;
 use lazy_static::lazy_static;
-use raw_cpuid::CpuId;
+use x86_64::VirtAddr;
 use x86_64::instructions::random::RdRand;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
-use x86_64::registers::model_specific::KernelGsBase;
+use x86_64::registers::model_specific::{GsBase, KernelGsBase};
 use x86_64::registers::mxcsr;
 use x86_64::registers::mxcsr::MxCsr;
 use x86_64::structures::paging::PhysFrame;
-use x86_64::VirtAddr;
-use crate::asm::syscall_entry_point;
-use crate::gdt::GDT;
-use crate::percpu::PER_CPU;
-
 pub mod asm;
+pub mod cpu_info;
 pub mod gdt;
 pub mod idt;
 pub mod percpu;
@@ -40,7 +38,7 @@ pub struct CpuTscInfo {
 }
 
 pub fn cpu_tsc_info() -> CpuTscInfo {
-    let cpuid = CpuId::new();
+    let cpuid = raw_cpuid::CpuId::new();
     let has_tsc = cpuid.get_feature_info().map(|finfo| finfo.has_tsc());
     let has_invariant_tsc = cpuid
         .get_advanced_power_mgmt_info()
@@ -142,26 +140,28 @@ pub fn load_fpu_state(state: &mut FpuState) {
     }
 }
 
-fn init_syscall() {
+fn init_gs(percpu: VirtAddr) {
+    KernelGsBase::write(percpu);
+    GsBase::write(percpu);
+}
+
+fn init_syscall(selectors: &Selectors) {
     use x86_64::registers::model_specific::{Efer, EferFlags, LStar, SFMask, Star};
     unsafe {
         Efer::update(|e| e.insert(EferFlags::SYSTEM_CALL_EXTENSIONS));
         Star::write(
-            GDT.1.user_code,
-            GDT.1.user_data,
-            GDT.1.kernel_code,
-            GDT.1.kernel_data,
+            selectors.user_code,
+            selectors.user_data,
+            selectors.kernel_code,
+            selectors.kernel_data,
         )
-            .expect("failed to set star");
+        .expect("failed to set star");
         LStar::write(VirtAddr::new(syscall_entry_point()));
         SFMask::write(x86_64::registers::rflags::RFlags::INTERRUPT_FLAG);
-        KernelGsBase::write(VirtAddr::from_ptr(PER_CPU.deref()));
     }
 }
 
-pub fn init() {
-    idt::load_idt();
-    gdt::init();
-    init_fpu();
-    init_syscall();
+pub fn init_percpu(cpu_id: CpuId) {
+    percpu::init(cpu_id);
 }
+

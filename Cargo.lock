@@ -29,6 +29,7 @@ dependencies = [
 name = "allocators"
 version = "0.1.0"
 dependencies = [
+ "linked_list_allocator",
  "spin 0.10.0",
 ]
 
@@ -244,9 +245,9 @@ checksum = "b35204fbdc0b3f4446b89fc1ac2cf84a8a68971995d0bf2e925ec7cd960f9cb3"
 
 [[package]]
 name = "cc"
-version = "1.2.52"
+version = "1.2.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd4932aefd12402b36c60956a4fe0035421f544799057659ff86f923657aada3"
+checksum = "43c5703da9466b66a946814e1adf53ea2c90f10063b86290cc9eb67ce3478a20"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -489,9 +490,9 @@ dependencies = [
 
 [[package]]
 name = "find-msvc-tools"
-version = "0.1.7"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f449e6c6c08c865631d4890cfacf252b3d396c9bcc83adb6623cdb02a8336c41"
+checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "font8x8"
@@ -672,6 +673,7 @@ version = "0.1.0"
 dependencies = [
  "buddy_allocator",
  "mem_fs",
+ "note",
 ]
 
 [[package]]
@@ -702,9 +704,9 @@ dependencies = [
 
 [[package]]
 name = "linked_list_allocator"
-version = "0.10.5"
+version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9afa463f5405ee81cdb9cc2baf37e08ec7e4c8209442b5d72c04cfb2cd6e6286"
+checksum = "2b23ac50abb8261cb38c6e2a7192d3302e0836dac1628f6a93b82b4fad185897"
 dependencies = [
  "spinning_top 0.2.5",
 ]
@@ -845,6 +847,7 @@ dependencies = [
  "mos_lib",
  "raw-cpuid 11.6.0",
  "spin 0.10.0",
+ "x2apic",
  "x86_64 0.15.4",
 ]
 
@@ -882,6 +885,8 @@ dependencies = [
  "mos_task",
  "noto-sans-mono-bitmap",
  "spin 0.10.0",
+ "vfs_common",
+ "vfs_traits",
 ]
 
 [[package]]
@@ -936,6 +941,7 @@ dependencies = [
  "mos_abi",
  "mos_arch",
  "mos_lib",
+ "vfs_common",
  "vfs_traits",
  "x86_64 0.15.4",
 ]
@@ -950,6 +956,8 @@ dependencies = [
  "mos_arch",
  "mos_driver",
  "mos_lib",
+ "mos_mem",
+ "mos_task",
  "pic8259",
  "spin 0.10.0",
  "x2apic",
@@ -979,6 +987,7 @@ dependencies = [
  "log",
  "mos_abi",
  "mos_arch",
+ "mos_display",
  "mos_fs_runtime",
  "mos_lib",
  "mos_mem",

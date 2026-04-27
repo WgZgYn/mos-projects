@@ -65,6 +65,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "note"
+version = "0.1.0"
+
+[[package]]
 name = "num_enum"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,6 +228,7 @@ version = "0.1.0"
 dependencies = [
  "green_thread",
  "libm",
+ "note",
  "user_lib",
 ]
 

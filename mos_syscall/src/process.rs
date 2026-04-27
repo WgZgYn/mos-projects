@@ -19,7 +19,7 @@ use mos_abi::ffi::NullEndPointerArray;
 use mos_abi::io::Read;
 use mos_abi::stack::PushStack;
 use mos_arch::structs::{
-    FpuState, InterruptStack, IretRegisters, PreservedRegisters, ProcessContext, ScratchRegisters,
+    FpuState, InterruptStack, IretRegisters, PreservedRegisters, CpuContext, ScratchRegisters,
     SyscallContext,
 };
 use mos_arch::{init_fpu_state, save_fpu_state};
@@ -104,7 +104,7 @@ pub fn sys_execve(
     frame.preserved = PreservedRegisters::default();
     frame.scratch = ScratchRegisters::default();
     frame.scratch.rcx = entry.as_u64();
-    frame.scratch.r11 = ProcessContext::DEFAULT_RFLAGS.bits();
+    frame.scratch.r11 = CpuContext::DEFAULT_RFLAGS.bits();
     current_tcb.init_fpu_state();
     tlb::flush_all();
 

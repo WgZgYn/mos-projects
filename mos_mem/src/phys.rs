@@ -5,6 +5,7 @@ use super::phys::buddy::{global_buddy, init_buddy};
 use super::phys::index::{alloc_frame, dec_refcount_and_if_zero, get_refcount, inc_refcount};
 use super::regions::UsableMemoryRegions;
 use super::zero_frame;
+use x86_64::structures::paging::frame::PhysFrameRange;
 use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB};
 
 #[derive(Default, Copy, Clone)]
@@ -59,20 +60,20 @@ impl PhysicalFrameManager {
         get_refcount((frame.start_address().as_u64() >> 12) as usize)
     }
 
-    // // TODO
-    // pub fn global_allocate_frames(self, n: usize) -> Option<PhysFrameRange<Size4KiB>> {
-    //     BUDDY.allocate_frames(n).inspect(|frames| {
-    //         frames.for_each(|frame| {
-    //             let pn = frame.start_address().as_u64() >> 12;
-    //             let ok = alloc_frame(pn as usize);
-    //             assert!(ok, "alloc frame, the old refcount must be 0");
-    //             zero_frame(frame)
-    //         })
-    //     })
-    // }
-    //
-    // // TODO:
-    // pub fn global_deallocate_frames(self, frames: PhysFrameRange<Size4KiB>) {
-    //     BUDDY.deallocate_frames(frames);
-    // }
+    pub fn global_allocate_frames(self, n: usize) -> Option<PhysFrameRange<Size4KiB>> {
+        global_buddy().allocate_frames(n).inspect(|frames| {
+            frames.for_each(|frame| {
+                let pn = frame.start_address().as_u64() >> 12;
+                let ok = alloc_frame(pn as usize);
+                assert!(ok, "alloc frame, the old refcount must be 0");
+                zero_frame(frame)
+            })
+        })
+    }
+
+    pub fn global_deallocate_frames(self, frames: PhysFrameRange<Size4KiB>) {
+        for frame in frames {
+            self.ref_dec(frame);
+        }
+    }
 }

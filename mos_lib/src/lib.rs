@@ -14,7 +14,11 @@ use core::mem::MaybeUninit;
 /// only use at kernel boot init
 pub struct KernelBootGlobal<T>(UnsafeCell<MaybeUninit<T>>);
 impl<T> KernelBootGlobal<T> {
-    pub const fn uninit() -> KernelBootGlobal<T> {
+    pub const fn new(val: T) -> Self {
+        Self(UnsafeCell::new(MaybeUninit::new(val)))
+        
+    }
+    pub const fn uninit() -> Self {
         Self(UnsafeCell::new(MaybeUninit::uninit()))
     }
     pub unsafe fn init(&self, init: impl FnOnce() -> T) {

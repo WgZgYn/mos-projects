@@ -13,6 +13,7 @@ use alloc::borrow::ToOwned;
 use alloc::ffi::CString;
 use alloc::vec::Vec;
 use core::ffi::{CStr, c_char};
+use core::mem::needs_drop;
 use log::info;
 use mos_abi::ffi::NullEndPointerArray;
 use mos_abi::fs::FileDesc;
@@ -25,6 +26,7 @@ use mos_task::current_tcb;
 use vfs_common::UserDirEntry;
 use x86_64::VirtAddr;
 use x86_64::structures::paging::Page;
+use mos_display::{new_window, Rect};
 
 pub mod fs;
 pub mod mem;
@@ -181,6 +183,14 @@ pub fn syscall(context: &mut SyscallContext) {
             } else {
                 context.scratch.rax = u64::MAX;
             }
+        }
+        Syscall::CreateWindow => {
+            let x = args[0] as usize;
+            let y = args[1] as usize;
+            let w = args[2] as usize;
+            let h = args[3] as usize;
+            let rect = Rect { x, y, w, h };
+
         }
         _ => {
             info!("unknown syscall {:?} regard as sys_exit", syscall_id);

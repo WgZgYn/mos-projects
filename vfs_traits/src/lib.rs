@@ -33,9 +33,6 @@ pub trait Inode: Send + Sync {
     fn as_file_ops(&self) -> VfsResult<&dyn FileOps> {
         Err(VfsError::NotFile)
     }
-    fn as_stream_ops(&self) -> VfsResult<&dyn StreamOps> {
-        Err(VfsError::NotStream)
-    }
     fn as_dir_ops(&self) -> VfsResult<&dyn DirOps> {
         Err(VfsError::NotDir)
     }
@@ -48,14 +45,9 @@ pub trait Inode: Send + Sync {
     }
 }
 
-pub trait StreamOps: Send + Sync {
-    fn read(&self, ctx: &IoContext, buf: &mut [u8]) -> VfsResult<usize>;
-    fn write(&self, ctx: &IoContext, buf: &[u8]) -> VfsResult<usize>;
-}
-
 pub trait FileOps: Send + Sync {
-    fn read_at(&self, offset: usize, buf: &mut [u8]) -> VfsResult<usize>;
-    fn write_at(&self, offset: usize, buf: &[u8]) -> VfsResult<usize>;
+    fn read(&self, ctx: &IoContext, offset: usize, buf: &mut [u8]) -> VfsResult<usize>;
+    fn write(&self, ctx: &IoContext, offset: usize, buf: &[u8]) -> VfsResult<usize>;
 }
 
 pub trait DirOps: Send + Sync {

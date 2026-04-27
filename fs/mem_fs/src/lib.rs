@@ -8,7 +8,7 @@ use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
 use spin::Mutex;
-use vfs_common::{FileType, VfsError, VfsResult};
+use vfs_common::{FileType, IoContext, VfsError, VfsResult};
 use vfs_traits::*;
 
 lazy_static! {
@@ -205,7 +205,7 @@ impl DirOps for MemInode {
 }
 
 impl FileOps for MemInode {
-    fn read_at(&self, mut offset: usize, mut buf: &mut [u8]) -> VfsResult<usize> {
+    fn read(&self, _ctx: &IoContext, mut offset: usize, mut buf: &mut [u8]) -> VfsResult<usize> {
         let FileContent::File(f) = &mut self.inner.lock().content else {
             return Err(VfsError::NotFile);
         };
@@ -233,7 +233,7 @@ impl FileOps for MemInode {
         Ok(total_read)
     }
 
-    fn write_at(&self, mut offset: usize, mut buf: &[u8]) -> VfsResult<usize> {
+    fn write(&self, _ctx: &IoContext, mut offset: usize, mut buf: &[u8]) -> VfsResult<usize> {
         let FileContent::File(f) = &mut self.inner.lock().content else {
             return Err(VfsError::NotFile);
         };
@@ -264,7 +264,7 @@ impl FileOps for MemInode {
 
 mod tests {
     use crate::get_memfs_root;
-    use vfs_common::FileType;
+    use vfs_common::{FileType, IoContext};
 
     #[test]
     fn test_all() {
@@ -274,10 +274,16 @@ mod tests {
             .unwrap()
             .create("a.txt", FileType::Regular)
             .unwrap();
-        let n = text.as_file_ops().unwrap().write_at(0, b"hello");
+        let n = text
+            .as_file_ops()
+            .unwrap()
+            .write(&IoContext::default(), 0, b"hello");
         assert_eq!(n.unwrap(), 5);
         let mut buffer = [0; 10];
-        let n = text.as_file_ops().unwrap().read_at(0, &mut buffer);
+        let n = text
+            .as_file_ops()
+            .unwrap()
+            .read(&IoContext::default(), 0, &mut buffer);
         assert_eq!(n.unwrap(), 5);
         assert_eq!(&buffer[..5], b"hello");
     }

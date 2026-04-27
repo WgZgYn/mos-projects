@@ -1,7 +1,7 @@
 use mos_abi::fs::FileDesc;
 use mos_arch::structs::SyscallContext;
 use mos_task::current_tcb;
-use vfs_common::{VfsError, VfsResult, vfs_result_to_isize};
+use vfs_common::{vfs_result_to_isize, VfsError, VfsResult};
 
 pub fn raw_sys_write(context: &mut SyscallContext, args: [u64; 6]) {
     let arg0_fd = args[0];

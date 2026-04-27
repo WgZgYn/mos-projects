@@ -19,8 +19,8 @@ lazy_static! {
         Arc::new(File::from_dentry(TTY_DENTRY.clone(), 0, OpenFlags::WRITE).unwrap());
 }
 
-impl StreamOps for TtyInode {
-    fn read(&self, ctx: &IoContext, buf: &mut [u8]) -> VfsResult<usize> {
+impl FileOps for TtyInode {
+    fn read(&self, ctx: &IoContext, _offset: usize, buf: &mut [u8]) -> VfsResult<usize> {
         let mut chars = CharSyncStream::default();
         let mut total = 0;
         if ctx.nonblock {
@@ -50,7 +50,7 @@ impl StreamOps for TtyInode {
         }
     }
 
-    fn write(&self, _ctx: &IoContext, buf: &[u8]) -> VfsResult<usize> {
+    fn write(&self, _ctx: &IoContext, _offset: usize, buf: &[u8]) -> VfsResult<usize> {
         if let Ok(s) = core::str::from_utf8(buf) {
             print!("{}", s);
             serial_print!("{}", s);
@@ -71,7 +71,7 @@ impl Inode for TtyInode {
     fn parent(&self) -> VfsResult<Option<Arc<dyn Inode>>> {
         Ok(Some(DEV_DIR_INODE.clone()))
     }
-    fn as_stream_ops(&self) -> VfsResult<&dyn StreamOps> {
+    fn as_file_ops(&self) -> VfsResult<&dyn FileOps> {
         Ok(self)
     }
 }

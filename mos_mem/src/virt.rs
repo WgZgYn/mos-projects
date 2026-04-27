@@ -15,6 +15,7 @@ use x86_64::structures::paging::{
     FrameDeallocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Translate,
 };
 use x86_64::{PhysAddr, VirtAddr};
+use vfs_common::IoContext;
 
 const MEMORY_DEFAULT_HEAP_START_PAGE: Page = Page::containing_address(VirtAddr::new(0x1000_0000));
 const MEMORY_DEFAULT_MMAP_START_PAGE: Page = Page::containing_address(VirtAddr::new(0x4000_0000));
@@ -558,7 +559,7 @@ impl MemorySet {
                             .inode
                             .as_file_ops()
                             .expect("should mmap at regular file")
-                            .read_at(offset as usize, &mut buf[total..])
+                            .read(&IoContext::default(), offset as usize, &mut buf[total..])
                             .map_err(|e| e.as_str())?;
                         offset += n as u64;
                         total += n;

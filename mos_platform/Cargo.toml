@@ -12,5 +12,7 @@ spin = "0.10.0"
 log = "0.4.29"
 pic8259 = "0.11.0"
 mos_arch = { path = "../mos_arch" }
-mos_driver = { path = "../mos_driver" }
 mos_lib = { path = "../mos_lib" }
+mos_mem = { path = "../mos_mem" }
+mos_task = { path = "../mos_task" }
+mos_driver = { path = "../mos_driver" }

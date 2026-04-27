@@ -4,7 +4,9 @@ use mos_arch::idt::{
     set_general_protection_fault_handler, set_page_fault_handler,
 };
 use mos_arch::make_interrupt_handler;
+use mos_arch::percpu::current_raw;
 use mos_arch::structs::SyscallContext;
+use mos_driver::serial_println;
 use mos_lib::sync::KRef;
 use mos_lib::utils::try_dump;
 use mos_mem::{PageTableManager, PhysicalFrameManager, phys_page_copy};
@@ -75,6 +77,11 @@ make_interrupt_handler!(
     timer_handler,
     |_ctx| {
         let tick = unsafe { tick() };
+        if tick.is_multiple_of(500) {
+            unsafe {
+                serial_println!("{:?}", current_raw().cpu_id);
+            }
+        }
         let need_schedule = tick.is_multiple_of(10);
         if need_schedule {
             current_tcb().set_need_schedule();

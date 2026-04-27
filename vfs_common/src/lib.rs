@@ -98,6 +98,9 @@ pub struct IoContext {
 }
 
 impl IoContext {
+    pub const fn default() -> Self {
+        Self { nonblock: false }
+    }
     pub const fn new(nonblock: bool) -> Self {
         Self { nonblock }
     }

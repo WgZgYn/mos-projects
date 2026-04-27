@@ -2,6 +2,7 @@
 mod embedding;
 mod null;
 mod rand;
+mod spk;
 pub mod tty;
 mod zero;
 
@@ -10,6 +11,7 @@ extern crate alloc;
 use crate::embedding::EMBEDDING_INODE;
 use crate::null::NULL_INODE;
 use crate::rand::RAND_INODE;
+use crate::spk::SPK_INODE;
 use crate::tty::TTY_INODE;
 use crate::zero::ZERO_INODE;
 use alloc::borrow::ToOwned;
@@ -37,6 +39,7 @@ impl DirOps for DevDirInode {
             "tty" => Ok(TTY_INODE.clone()),
             "rand" => Ok(RAND_INODE.clone()),
             "embedding" => Ok(EMBEDDING_INODE.clone()),
+            "spk" => Ok(SPK_INODE.clone()),
             _ => Err(VfsError::NotFound),
         }
     }
@@ -46,7 +49,7 @@ impl DirOps for DevDirInode {
     }
 
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>> {
-        if let Some(&s) = ["null", "tty", "zero", "rand", "embedding"].get(offset) {
+        if let Some(&s) = ["null", "tty", "zero", "rand", "embedding", "spk"].get(offset) {
             let inode = self.lookup(s)?;
             let entry = DirEntry::new(s.to_owned(), inode.file_type(), inode);
             Ok(Some(entry))

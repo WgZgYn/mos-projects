@@ -10,3 +10,5 @@ bootloader_api = "0.11.15"
 noto-sans-mono-bitmap = { version = "0.3.2", features = ["size_20", "unicode-specials"] }
 mos_task = { path = "../mos_task" }
 mos_lib = { path = "../mos_lib" }
+vfs_traits = { path = "../vfs_traits" }
+vfs_common = { path = "../vfs_common" }

@@ -5,7 +5,7 @@ use crate::index::{InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use alloc::borrow::ToOwned;
 use alloc::sync::Arc;
 use log::{info, trace};
-use vfs_common::{MountFlags, VfsError, VfsResult};
+use vfs_common::{IoContext, MountFlags, VfsError, VfsResult};
 use vfs_traits::{DirEntry, DirOps, FileOps, Inode, SuperBlock, VFS};
 
 impl VFS for RamFsManager<'static> {
@@ -27,7 +27,7 @@ pub struct FsNode {
 }
 
 impl FileOps for FsNode {
-    fn read_at(&self, offset: usize, buf: &mut [u8]) -> Result<usize, VfsError> {
+    fn read(&self, _ctx: &IoContext, offset: usize, buf: &mut [u8]) -> Result<usize, VfsError> {
         let fs = self.fs.read();
         let index = self.idx;
         let inode = &fs[index];
@@ -59,7 +59,7 @@ impl FileOps for FsNode {
         Ok(read_total)
     }
 
-    fn write_at(&self, offset: usize, mut buf: &[u8]) -> Result<usize, VfsError> {
+    fn write(&self, _ctx: &IoContext, offset: usize, mut buf: &[u8]) -> Result<usize, VfsError> {
         let index = self.idx;
         let mut cursor = offset;
         let mut total_written = 0;
@@ -155,7 +155,7 @@ impl DirOps for FsNode {
         let bytes_offset = offset * structs_size::RAMFS_DIR_ITEM_SIZE;
 
         let mut item = [0; structs_size::RAMFS_DIR_ITEM_SIZE];
-        let n = node.read_at(bytes_offset, &mut item)?;
+        let n = node.read(&IoContext::default(), bytes_offset, &mut item)?;
         if n == 0 {
             return Ok(None);
         }

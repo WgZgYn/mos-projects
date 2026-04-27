@@ -16,3 +16,4 @@ mos_vfs = { path = "../mos_vfs" }
 mos_task = { path = "../mos_task" }
 mos_platform = { path = "../mos_platform" }
 mos_fs_runtime = { path = "../mos_fs_runtime" }
+mos_display = { path = "../mos_display" }

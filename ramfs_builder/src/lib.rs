@@ -8,7 +8,7 @@ use std::mem::MaybeUninit;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use vfs_common::FileType;
+use vfs_common::{FileType, IoContext};
 use vfs_traits::{Inode, SuperBlock};
 
 pub struct RamfsBuilder {
@@ -60,7 +60,7 @@ impl RamfsBuilder {
 
         node.as_file_ops()
             .map_err(|e| e.as_str())?
-            .write_at(0, buffer.as_slice())
+            .write(&IoContext::default(), 0, buffer.as_slice())
             .map_err(|_| "Ramfs file write failed")?;
         Ok(())
     }
@@ -113,7 +113,7 @@ fn build_helper(
                 fs_file
                     .as_file_ops()
                     .map_err(|e| e.as_str())?
-                    .write_at(0, &buffer)
+                    .write(&IoContext::default(), 0, &buffer)
                     .map_err(|e| e.as_str())?;
                 info!("insert file {}:{:?} success", name, FileType::Regular);
             }

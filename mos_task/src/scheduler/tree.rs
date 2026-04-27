@@ -1,8 +1,7 @@
 use crate::thread::ThreadControlBlock;
-use crate::traits::{ReadyQueue, SchedStrategy};
+use crate::traits::{ReadyQueue, SchedDecision, SchedStrategy};
 use alloc::collections::BTreeSet;
 use core::cmp::Ordering;
-use core::ops::Deref;
 use mos_lib::sync::KRef;
 
 pub struct TreeScheduleStrategy;
@@ -42,8 +41,8 @@ impl ReadyQueue for TreeQueue {
         self.tasks.pop_first().map(|t| t.0)
     }
 
-    fn peek(&self) -> Option<&ThreadControlBlock> {
-        self.tasks.first().map(|t| t.0.deref())
+    fn peek(&self) -> Option<&KRef<ThreadControlBlock>> {
+        self.tasks.first().map(|t| &t.0)
     }
 
     fn new() -> Self {
@@ -55,4 +54,14 @@ impl ReadyQueue for TreeQueue {
 
 impl SchedStrategy for TreeScheduleStrategy {
     type Queue = TreeQueue;
+
+    fn pick_with(queue: &mut Self::Queue, task: KRef<ThreadControlBlock>) -> SchedDecision {
+        if let Some(next) = queue.peek()
+            && next.priority >= task.priority
+        {
+            SchedDecision::SwitchTo(queue.push_pop(task))
+        } else {
+            SchedDecision::KeepRunning
+        }
+    }
 }

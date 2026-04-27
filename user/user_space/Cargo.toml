@@ -8,3 +8,4 @@ build = "build.rs"
 libm = "0.2.16"
 green_thread = { path = "../../libs/green_thread" }
 user_lib = { path = "../user_lib", features = ["alloc"] }
+note = { path = "../../libs/note" }

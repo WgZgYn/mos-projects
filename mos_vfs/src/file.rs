@@ -3,14 +3,8 @@ use alloc::sync::Arc;
 use mos_abi::io::{IOError, IOResult, Read};
 use spin::Mutex;
 use vfs_common::VfsError::NotFound;
-use vfs_common::{FileType, IoContext, OpenFlags, VfsError, VfsResult};
-use vfs_traits::{DirEntry, DirOps, FileOps, Inode, StreamOps};
-
-pub enum Ops {
-    Dir(Arc<dyn DirOps>),
-    File(Arc<dyn FileOps>),
-    Fifo(Arc<dyn StreamOps>),
-}
+use vfs_common::{IoContext, OpenFlags, VfsError, VfsResult};
+use vfs_traits::{DirEntry, Inode};
 
 pub struct File {
     inode: Arc<dyn Inode>,
@@ -55,39 +49,21 @@ impl File {
         if !self.flags.contains(OpenFlags::READ) {
             return Err(VfsError::PermissionDenied);
         }
-        match self.inode.file_type() {
-            FileType::Regular | FileType::BlockDevice => {
-                let mut offset = self.offset.lock();
-                let file = self.inode.as_file_ops()?;
-                let n = file.read_at(*offset as _, buf)?;
-                *offset += n as u64;
-                Ok(n)
-            }
-            FileType::CharDevice | FileType::Fifo => self.inode.as_stream_ops()?.read(
-                &IoContext::new(self.flags.contains(OpenFlags::NONBLOCK)),
-                buf,
-            ),
-            _ => Err(VfsError::NotSupported),
-        }
+        let ctx = IoContext::new(self.flags.contains(OpenFlags::NONBLOCK));
+        let offset = *self.offset.lock();
+        let n = self.inode.as_file_ops()?.read(&ctx, offset as _, buf)?;
+        *self.offset.lock() += n as u64;
+        Ok(n)
     }
     pub fn write(&self, buf: &[u8]) -> VfsResult<usize> {
         if !self.flags.contains(OpenFlags::WRITE) {
             return Err(VfsError::PermissionDenied);
         }
-        match self.inode.file_type() {
-            FileType::Regular | FileType::BlockDevice => {
-                let mut offset = self.offset.lock();
-                let file = self.inode.as_file_ops()?;
-                let n = file.write_at(*offset as _, buf)?;
-                *offset += n as u64;
-                Ok(n)
-            }
-            FileType::CharDevice | FileType::Fifo => self.inode.as_stream_ops()?.write(
-                &IoContext::new(self.flags.contains(OpenFlags::NONBLOCK)),
-                buf,
-            ),
-            _ => Err(VfsError::NotSupported),
-        }
+        let ctx = IoContext::new(self.flags.contains(OpenFlags::NONBLOCK));
+        let offset = *self.offset.lock();
+        let n = self.inode.as_file_ops()?.write(&ctx, offset as _, buf)?;
+        *self.offset.lock() += n as u64;
+        Ok(n)
     }
     pub fn set_offset(&mut self, offset: u64) {
         *self.offset.lock() = offset;

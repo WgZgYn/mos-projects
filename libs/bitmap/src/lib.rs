@@ -245,3 +245,47 @@ impl<const N: usize> IntoIterator for BitMap<N> {
         self.bits.into_iter()
     }
 }
+
+
+mod tests {
+    use crate::BitMap;
+    #[test]
+    fn test_set() {
+        let mut bitmap = BitMap::<32>::all_zero();
+        bitmap.set(5);
+        assert!(bitmap.get(5));
+        assert!(!bitmap.get(6));
+        assert_eq!(bitmap.find_first_set(), Some(5));
+    }
+
+    #[test]
+    fn test_set_range() {
+        let mut bitmap = BitMap::<32>::all_zero();
+        bitmap.set_range(0..5);
+        for i in 0..5 {
+            assert!(bitmap.get(i));
+        }
+        assert!(!bitmap.get(6));
+        assert_eq!(bitmap.find_first_set(), Some(0));
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut bitmap = BitMap::<32>::all_ones();
+        bitmap.clear(5);
+        assert!(!bitmap.get(5));
+        assert!(bitmap.get(6));
+        assert_eq!(bitmap.find_first_zero(), Some(5));
+    }
+
+    #[test]
+    fn test_clear_range() {
+        let mut bitmap = BitMap::<32>::all_ones();
+        bitmap.clear_range(0..5);
+        for i in 0..5 {
+            assert!(!bitmap.get(i));
+        }
+        assert!(bitmap.get(6));
+        assert_eq!(bitmap.find_first_zero(), Some(0));
+    }
+}

@@ -118,9 +118,11 @@ where
         let scancode = self.stream.next_scancode_nonblocking()?;
         if let Ok(Some(key_event)) = self.keyboard.add_byte(scancode)
             && let Some(key) = self.keyboard.process_keyevent(key_event)
-            && let DecodedKey::Unicode(character) = key
         {
-            return Some(character);
+            match key {
+                DecodedKey::RawKey(_raw) => {}
+                DecodedKey::Unicode(c) => return Some(c),
+            }
         }
         None
     }

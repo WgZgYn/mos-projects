@@ -8,7 +8,7 @@ pub trait ReadyQueue {
         self.push(t);
         self.pop().unwrap()
     }
-    fn peek(&self) -> Option<&ThreadControlBlock>;
+    fn peek(&self) -> Option<&KRef<ThreadControlBlock>>;
     fn new() -> Self;
 }
 
@@ -20,20 +20,25 @@ pub trait Scheduler {
     fn schedule(&mut self, current: &mut KRef<ThreadControlBlock>) -> KRef<ThreadControlBlock>;
 }
 
+pub enum SchedDecision {
+    KeepRunning,
+    SwitchTo(KRef<ThreadControlBlock>),
+}
+
 pub trait SchedStrategy {
     type Queue: ReadyQueue;
+
     fn pick_next(queue: &mut Self::Queue) -> Option<KRef<ThreadControlBlock>> {
         queue.pop()
     }
 
-    fn pick_with(
-        queue: &mut Self::Queue,
-        task: KRef<ThreadControlBlock>,
-    ) -> KRef<ThreadControlBlock> {
-        queue.push_pop(task)
-    }
-
-    fn peek(queue: &Self::Queue) -> Option<&ThreadControlBlock> {
-        queue.peek()
+    fn pick_with(queue: &mut Self::Queue, task: KRef<ThreadControlBlock>) -> SchedDecision {
+        let tid = task.tid;
+        let next = queue.push_pop(task);
+        if next.tid == tid {
+            SchedDecision::KeepRunning
+        } else {
+            SchedDecision::SwitchTo(next)
+        }
     }
 }

@@ -11,22 +11,20 @@ use data_public::struct_field_public;
 use lazy_static::lazy_static;
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
-use mos_arch::structs::ProcessContext;
-use mos_lib::Frame4KiB;
+use mos_arch::structs::CpuContext;
 use mos_lib::sync::{KRef, RefCounted};
-use mos_mem::PageTableManager;
+use mos_lib::Frame4KiB;
 use mos_mem::slab::Slab;
 use mos_mem::virt::{MemoryArea, MemoryFlags, MemorySet};
+use mos_mem::PageTableManager;
 use mos_vfs::dentry::Dentry;
 use mos_vfs::file::File;
 use mos_vfs::vfs_root_dentry;
 use spin::Mutex;
-use x86_64::VirtAddr;
-use x86_64::registers::rflags::RFlags;
-use x86_64::structures::paging::Page;
 use x86_64::structures::paging::page::PageRange;
+use x86_64::structures::paging::Page;
+use x86_64::VirtAddr;
 
-pub const DEFAULT_RFLAGS: RFlags = RFlags::INTERRUPT_FLAG; // IF=1
 pub const DEFAULT_USER_STACK_PAGES: u64 = 4; // currently only 16 KiB
 pub const DEFAULT_KERNEL_STACK_PAGES: usize = 4;
 
@@ -132,7 +130,7 @@ struct_field_public! {
         pid: Pid,
 
         /// determine the process running ring level
-        context: ProcessContext,
+        context: CpuContext,
 
         /// the address space the process uses
         mem: MemorySet,
@@ -165,9 +163,9 @@ impl ProcessControlBlock {
         };
 
         let context = if user_space {
-            ProcessContext::user_context()
+            CpuContext::user_context()
         } else {
-            ProcessContext::kernel_context()
+            CpuContext::kernel_context()
         };
 
         let mut guard = PCB_SLAB.lock();

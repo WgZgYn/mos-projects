@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 mem_fs = { path = "../fs/mem_fs" }
 buddy_allocator = { path = "../libs/buddy_allocator" }
+note = { path = "../libs/note" }

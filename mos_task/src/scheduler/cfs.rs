@@ -84,10 +84,19 @@ impl ReadyQueue for CfsReadyQueue {
         }
     }
 
-    fn peek(&self) -> Option<&ThreadControlBlock> {
-        let min = self.min.as_ref()?;
-        let cursor = unsafe { self.root.cursor_from_ptr(min.as_ref()) };
-        cursor.get()
+    fn peek(&self) -> Option<&KRef<ThreadControlBlock>> {
+        // let min = self.min.as_ref()?;
+        // let cursor = unsafe { self.root.cursor_from_ptr(min.as_ref()) };
+        // cursor.get()
+
+        match &self.min {
+            None => None,
+            Some(cell) => Some(unsafe { core::mem::transmute(cell) }),
+        }
+
+        // let ptr = NonNull::new(UnsafeRef::into_raw(min.clone())).unwrap();
+        // let kref: &KRef<ThreadControlBlock> = unsafe { core::mem::transmute(min) };
+        // Some(kref.deref())
     }
 
     fn new() -> Self {

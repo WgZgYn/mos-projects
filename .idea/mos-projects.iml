@@ -57,12 +57,14 @@
       <sourceFolder url="file://$MODULE_DIR$/mos_fs_runtime/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mos_runtime/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/mos_syscall/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/libs/vcode/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/mos/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/user/target" />
       <excludeFolder url="file://$MODULE_DIR$/user/test_dyn/target" />
       <excludeFolder url="file://$MODULE_DIR$/user/test_dyn_bin/target" />
       <excludeFolder url="file://$MODULE_DIR$/user/user_space/target" />
+      <excludeFolder url="file://$MODULE_DIR$/libs/vcode/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

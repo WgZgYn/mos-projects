@@ -4,7 +4,7 @@ use core::fmt;
 use mos_arch::with_disabled_interrupts;
 use mos_lib::sync::DummyLock;
 use noto_sans_mono_bitmap::{
-    FontWeight, RasterHeight, RasterizedChar, get_raster, get_raster_width,
+    get_raster, get_raster_width, FontWeight, RasterHeight, RasterizedChar,
 };
 // TODO:
 // DOUBLE BUFFERING
@@ -114,8 +114,23 @@ impl FrameBufferWriter {
             '\n' => self.newline(),
             '\r' => self.carriage_return(),
             '\t' => self.render_char(' '),
+            '\x08' => self.backspace(),
             c if c < ' ' => (), // 忽略控制字符
             c => self.render_char(c),
+        }
+    }
+
+    fn backspace(&mut self) {
+        let char_width = font_constants::CHAR_RASTER_WIDTH + LETTER_SPACING;
+        if self.x_pos >= BORDER_PADDING + char_width {
+            self.x_pos -= char_width;
+            // 用背景色擦除该字符区域
+            let char_height = font_constants::CHAR_RASTER_HEIGHT.val();
+            for y in 0..char_height {
+                for x in 0..font_constants::CHAR_RASTER_WIDTH {
+                    self.write_pixel(self.x_pos + x, self.y_pos + y, 0); // 0 代表黑色背景
+                }
+            }
         }
     }
 

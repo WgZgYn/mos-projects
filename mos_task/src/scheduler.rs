@@ -1,27 +1,28 @@
 mod cfs;
-mod fifo;
+mod fcfs;
+mod hybrid;
 mod priority;
 mod round;
 mod tree;
 
-use crate::thread::{IDLE, REAPER, ThreadControlBlock, ThreadStateValue};
-use crate::traits::{ReadyQueue, SchedStrategy};
+use crate::thread::{REAPER, ThreadControlBlock, ThreadStateValue};
+use crate::traits::{ReadyQueue, SchedDecision, SchedStrategy};
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 use core::arch::asm;
 use core::marker::PhantomData;
-use core::ops::{Deref, DerefMut};
+use core::ops::DerefMut;
+use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use lazy_static::lazy_static;
 use log::info;
 use mos_arch::asm::__switch_context;
-use mos_arch::gdt::write_rsp0;
-use mos_arch::percpu::update_per_cpu;
+use mos_arch::percpu::{current_raw, current_raw_mut};
 use mos_arch::sync::{SpinIrqLock, SpinIrqLockGuard};
 use mos_lib::sync::{KRef, KWake};
 use x86_64::structures::idt::InterruptStackFrame;
 
-type ScheduleStrategyImpl = cfs::CfsScheduleStrategy;
+type ScheduleStrategyImpl = hybrid::HybridSchedStrategy<cfs::CfsScheduleStrategy>;
 
 lazy_static! {
     pub static ref SCHEDULER: SpinIrqLock<Scheduler<ScheduleStrategyImpl>> =
@@ -31,7 +32,6 @@ lazy_static! {
 static PREEMPT_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub struct Scheduler<S: SchedStrategy> {
-    current: KRef<ThreadControlBlock>,
     ready_queue: S::Queue,
     exits: VecDeque<KRef<ThreadControlBlock>>,
     reaper: Option<KRef<ThreadControlBlock>>,
@@ -41,7 +41,6 @@ pub struct Scheduler<S: SchedStrategy> {
 impl<S: SchedStrategy> Scheduler<S> {
     fn new() -> Self {
         Self {
-            current: IDLE.clone(),
             ready_queue: S::Queue::new(),
             exits: VecDeque::with_capacity(32),
             reaper: Some(REAPER.clone()),
@@ -54,11 +53,7 @@ impl<S: SchedStrategy> Scheduler<S> {
         self.ready_queue.push(entity);
     }
     pub fn get_clear_need_schedule(&self) -> bool {
-        self.current.get_clear_need_schedule()
-    }
-
-    pub fn current_tcb(&self) -> &KRef<ThreadControlBlock> {
-        &self.current
+        current_tcb().get_clear_need_schedule()
     }
 
     pub fn wake_reaper(&mut self) {
@@ -72,8 +67,8 @@ impl<S: SchedStrategy> Scheduler<S> {
     }
 
     pub fn block_reaper(&mut self) {
-        assert_eq!(self.current.tid, REAPER.tid);
-        self.current.set_state(ThreadStateValue::Blocked);
+        assert_eq!(current_tcb().tid, REAPER.tid);
+        current_tcb().set_state(ThreadStateValue::Blocked);
         self.reaper = Some(REAPER.clone());
     }
 
@@ -83,22 +78,26 @@ impl<S: SchedStrategy> Scheduler<S> {
 
     /// before call this function, the thread state must already be set
     fn schedule(&mut self) -> Option<KRef<ThreadControlBlock>> {
-        let current_state = self.current.get_state();
+        let current = current_tcb();
+        let current_state = current.get_state();
         let new = match current_state {
             ThreadStateValue::Ready => panic!("should not be ready"),
             ThreadStateValue::Running => {
-                let next = S::pick_with(&mut self.ready_queue, self.current.clone());
-                if next.tid == self.current.tid {
+                let SchedDecision::SwitchTo(next) =
+                    S::pick_with(&mut self.ready_queue, current.clone())
+                else {
                     return None;
-                }
-                self.current.set_state(ThreadStateValue::Ready);
+                };
+                current.set_state(ThreadStateValue::Ready);
                 next
             }
-            ThreadStateValue::Blocked => S::pick_next(&mut self.ready_queue).unwrap(),
+            ThreadStateValue::Blocked => {
+                S::pick_next(&mut self.ready_queue).expect("should has IDLE task")
+            }
             ThreadStateValue::Zombied => {
-                self.exits.push_back(self.current.clone());
+                self.exits.push_back(current.clone());
                 self.wake_reaper();
-                S::pick_next(&mut self.ready_queue).unwrap()
+                S::pick_next(&mut self.ready_queue).expect("should has IDLE task")
             }
         };
         Some(new)
@@ -113,11 +112,10 @@ impl<S: SchedStrategy> Scheduler<S> {
                 if !old.process.mem.share_same_page_table(&new.process.mem) {
                     new.process.mem.activate()
                 }
-                write_rsp0(new.kernel_stack_top());
-                update_per_cpu(|per_cpu| {
-                    per_cpu.kernel_stack_top = new.kernel_stack_top().as_mut_ptr();
-                    per_cpu.temp_rsp = core::ptr::null_mut();
-                });
+                let percpu = current_raw_mut();
+                percpu.kernel_stack_top = new.kernel_stack_top().as_mut_ptr();
+                percpu.temp_rsp = core::ptr::null_mut();
+                percpu.update_rsp0(new.kernel_stack_top());
             }
         }
         inner(old, new);
@@ -130,11 +128,6 @@ impl<S: SchedStrategy> Scheduler<S> {
 pub enum ParkDecision<L> {
     Park(L),
     Unpark,
-}
-
-pub enum ParkResult {
-    Parked,
-    AlreadyNotRunning,
 }
 
 pub fn inc_preempt_count() {
@@ -158,8 +151,8 @@ pub fn schedule() {
     let Some(new) = guard.schedule() else {
         return;
     };
-    let old = guard.current.clone();
-    guard.current = new.clone();
+    let old = current_tcb();
+    set_current_tcb(new.clone());
     new.set_state(ThreadStateValue::Running);
     drop(guard);
     Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
@@ -167,24 +160,51 @@ pub fn schedule() {
 
 pub fn first_schedule() -> ! {
     fn jump_to_idle() -> ! {
-        let ctx = IDLE.context.get();
+        let ctx = idle_task().context.get();
         unsafe { asm!("jmp __switch_to", in("rsi") ctx, options(nostack, noreturn)) }
     }
 
-    IDLE.set_state(ThreadStateValue::Running);
+    let idle = idle_task();
+    idle.set_state(ThreadStateValue::Running);
+    unsafe {
+        current_raw_mut().current_tcb = KRef::into_ptr(idle).as_ptr() as _;
+    }
     jump_to_idle()
 }
 
 pub fn current_tcb() -> KRef<ThreadControlBlock> {
-    SCHEDULER.lock().current_tcb().clone()
+    unsafe {
+        let ptr =
+            NonNull::new(current_raw().current_tcb as _).expect("current_tcb should not be null");
+        KRef::increment_strong_count(ptr);
+        KRef::from_ptr(ptr)
+    }
+}
+
+pub fn idle_task() -> KRef<ThreadControlBlock> {
+    unsafe {
+        let ptr =
+            NonNull::new(current_raw().idle_tcb as _).expect("current_tcb should not be null");
+        KRef::increment_strong_count(ptr);
+        KRef::from_ptr(ptr)
+    }
+}
+
+fn set_current_tcb(tcb: KRef<ThreadControlBlock>) {
+    unsafe {
+        let ptr = NonNull::new(current_raw().current_tcb as *mut ThreadControlBlock)
+            .expect("current_tcb should not be null");
+        KRef::decrement_strong_count(ptr);
+        current_raw_mut().current_tcb = KRef::into_ptr(tcb).as_ptr() as _;
+    }
 }
 
 fn schedule_and_switch<T: SchedStrategy>(mut guard: SpinIrqLockGuard<Scheduler<T>>) {
     let Some(new) = guard.schedule() else {
         return;
     };
-    let old = guard.current.clone();
-    guard.current = new.clone();
+    let old = current_tcb();
+    set_current_tcb(new.clone());
     new.set_state(ThreadStateValue::Running);
     drop(guard);
     Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
@@ -203,7 +223,7 @@ pub fn wake_blocked_task(provider: impl IntoIterator<Item = KRef<ThreadControlBl
 }
 
 pub fn park_current<L>(register: impl FnOnce(&KRef<ThreadControlBlock>) -> ParkDecision<L>) {
-    park_with_scheduler(|s| register(&s.current))
+    park_with_scheduler(|_s| register(&current_tcb()))
 }
 
 pub fn park_with_scheduler<L>(
@@ -212,7 +232,7 @@ pub fn park_with_scheduler<L>(
     let mut guard = SCHEDULER.lock();
     match register(guard.deref_mut()) {
         ParkDecision::Park(lock) => {
-            guard.current.set_state(ThreadStateValue::Blocked);
+            current_tcb().set_state(ThreadStateValue::Blocked);
             drop(lock);
             schedule_and_switch(guard);
         }
@@ -265,8 +285,8 @@ impl ReadyQueue for Dequeue<KRef<ThreadControlBlock>> {
     fn pop(&mut self) -> Option<KRef<ThreadControlBlock>> {
         self.0.pop_front()
     }
-    fn peek(&self) -> Option<&ThreadControlBlock> {
-        self.0.front().map(|t| t.deref())
+    fn peek(&self) -> Option<&KRef<ThreadControlBlock>> {
+        self.0.front()
     }
     fn new() -> Self {
         Dequeue(VecDeque::with_capacity(32))

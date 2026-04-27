@@ -1,5 +1,6 @@
 mod bump;
 mod stack_heap;
+mod link;
 
 fn align_up(addr: usize, align: usize) -> usize {
     (addr + align - 1) & !(align - 1)

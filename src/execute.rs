@@ -67,12 +67,14 @@ pub fn run(run: Run, profile: Profile, boot_mode: Option<BootMode>) -> Result<()
     cmd.arg("-serial").arg("mon:stdio");
     cmd.arg("-cpu").arg("qemu64,+rdrand");
     cmd.arg("-m").arg("4G");
-
+    cmd.arg("-smp").arg("4");
     cmd.arg("-device").arg("virtio-gpu-pci");
     // cmd.arg("-nographic");
     // cmd.arg("-vnc").arg(":0");
     cmd.arg("-audiodev").arg("dsound,id=snd0");
     cmd.arg("-machine").arg("pcspk-audiodev=snd0");
+    // cmd.arg("-d").arg("int,guest_errors,cpu_reset").arg("-D").arg("qemu.log");
+    // cmd.arg("-no-reboot").arg("-no-shutdown");
     // cmd.arg("-netdev").arg("user,id=net0");
     // cmd.arg("-device").arg("e1000,netdev=net0,mac=52:54:00:12:34:56");
 

@@ -4,7 +4,7 @@ use mos_task::scheduler::{ParkDecision, park_current, wake_blocked_task};
 use mos_task::wait_queue::WaitQueueInner;
 use spin::Mutex;
 use vfs_common::{FileType, IoContext, OpenFlags, VfsError, VfsResult};
-use vfs_traits::{Inode, StreamOps};
+use vfs_traits::{FileOps, Inode};
 
 struct PipeInner {
     readers: usize,
@@ -34,7 +34,7 @@ impl Inode for PipeInode {
     fn file_type(&self) -> FileType {
         FileType::Fifo
     }
-    fn as_stream_ops(&self) -> VfsResult<&dyn StreamOps> {
+    fn as_file_ops(&self) -> VfsResult<&dyn FileOps> {
         Ok(self)
     }
     fn on_open(&self, flags: OpenFlags) -> VfsResult<()> {
@@ -60,8 +60,8 @@ impl Inode for PipeInode {
         Ok(())
     }
 }
-impl StreamOps for PipeInode {
-    fn read(&self, ctx: &IoContext, buf: &mut [u8]) -> VfsResult<usize> {
+impl FileOps for PipeInode {
+    fn read(&self, ctx: &IoContext, _offset: usize, buf: &mut [u8]) -> VfsResult<usize> {
         loop {
             let mut inner = self.inner.lock();
 
@@ -87,7 +87,7 @@ impl StreamOps for PipeInode {
         }
     }
 
-    fn write(&self, ctx: &IoContext, buf: &[u8]) -> VfsResult<usize> {
+    fn write(&self, ctx: &IoContext, _offset: usize, buf: &[u8]) -> VfsResult<usize> {
         loop {
             let mut inner = self.inner.lock();
 
@@ -143,8 +143,8 @@ impl Inode for FifoInode {
     fn file_type(&self) -> FileType {
         FileType::Fifo
     }
-    fn as_stream_ops(&self) -> VfsResult<&dyn StreamOps> {
-        self.pipe.as_stream_ops()
+    fn as_file_ops(&self) -> VfsResult<&dyn FileOps> {
+        self.pipe.as_file_ops()
     }
     fn on_open(&self, flags: OpenFlags) -> VfsResult<()> {
         let is_writer = flags.contains(OpenFlags::WRITE);

@@ -42,8 +42,6 @@ pub fn reaper() -> ! {
 }
 
 lazy_static! {
-    pub static ref IDLE: KRef<ThreadControlBlock> =
-        ProcessControlBlock::kernel_func(KERNEL.clone(), sti_hlt_loop, Priority(0));
     pub static ref REAPER: KRef<ThreadControlBlock> = {
         let t = ProcessControlBlock::kernel_func(KERNEL.clone(), reaper, Priority(REAPER_PRIORITY));
         t.state.store(ThreadStateValue::Blocked);

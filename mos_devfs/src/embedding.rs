@@ -1,7 +1,7 @@
 use crate::DEV_DIR_INODE;
 use alloc::sync::Arc;
 use lazy_static::lazy_static;
-use vfs_common::{FileType, VfsError, VfsResult};
+use vfs_common::{FileType, IoContext, VfsError, VfsResult};
 use vfs_traits::*;
 
 const RAW_BPP: &[u8] = include_bytes!("../../libs/vga/src/video_320x200_1bpp.bin");
@@ -13,7 +13,7 @@ lazy_static! {
 }
 
 impl FileOps for EmbeddingInode {
-    fn read_at(&self, offset: usize, buf: &mut [u8]) -> VfsResult<usize> {
+    fn read(&self, _ctx: &IoContext, offset: usize, buf: &mut [u8]) -> VfsResult<usize> {
         if offset >= RAW_BPP.len() {
             return Ok(0);
         }
@@ -22,7 +22,7 @@ impl FileOps for EmbeddingInode {
         Ok(n)
     }
 
-    fn write_at(&self, _offset: usize, _buf: &[u8]) -> VfsResult<usize> {
+    fn write(&self, _ctx: &IoContext, _offset: usize, _buf: &[u8]) -> VfsResult<usize> {
         Err(VfsError::PermissionDenied)
     }
 }

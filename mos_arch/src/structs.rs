@@ -1,8 +1,8 @@
 use core::mem::offset_of;
-use x86_64::VirtAddr;
 use x86_64::registers::rflags::RFlags;
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::structures::idt::InterruptStackFrameValue;
+use x86_64::VirtAddr;
 
 /// Caller saved registers
 #[repr(C)]
@@ -120,8 +120,9 @@ impl From<InterruptStack> for SyscallContext {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProcessContext {
+pub struct CpuContext {
     pub cs: SegmentSelector,
-    pub rflags: RFlags,
     pub ss: SegmentSelector,
+    pub rflags: RFlags,
 }
+

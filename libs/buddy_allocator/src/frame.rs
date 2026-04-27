@@ -244,7 +244,7 @@ impl<const ORDER: usize, A: Allocator + Clone> Deref for LockedFrameAllocator<OR
 
 mod tests {
     #[test]
-    fn test_buddy_allocator() {
+    fn test_buddy_allocator_small() {
         let mut allocator = crate::FrameAllocator::<32>::new();
         allocator.insert(0..10);
         for _ in 0..10 {
@@ -253,5 +253,24 @@ mod tests {
         assert!(allocator.alloc(1).is_none());
     }
 
+    #[test]
+    fn test_buddy_allocator_big() {
+        let mut allocator = crate::FrameAllocator::<32>::new();
+        allocator.insert(0..2000);
+        assert!(allocator.alloc(400).is_some());
+        assert!(allocator.alloc(51).is_some());
+    }
 
+    #[test]
+    fn test_buddy_allocator_dealloc() {
+        let mut allocator = crate::FrameAllocator::<32>::new();
+        allocator.insert(0..2000);
+        let a0 = allocator.alloc(400);
+        let a1 = allocator.alloc(51);
+        assert!(a0.is_some());
+        assert!(a1.is_some());
+        allocator.dealloc(a0.unwrap(), 400);
+        allocator.dealloc(a1.unwrap(), 51);
+        assert!(allocator.alloc(400).is_some());
+    }
 }

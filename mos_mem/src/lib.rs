@@ -48,7 +48,7 @@ pub fn init(
 
     // init usable memory regions and init physical frame manager
     regions::init(memory_regions);
-    regions::access(|regions| PhysicalFrameManager::init(regions));
+    regions::access(PhysicalFrameManager::init);
 
     // init kernel heap space
     init_heap(&mut mapper, &mut PhysicalFrameManager).expect("Failed to initialize kernel heap");

@@ -30,7 +30,14 @@ fn main(argc: usize, argv: Args, envp: Args) -> i32 {
     let mut line = String::new();
     loop {
         let c = get_char();
-        print!("{}", c as char);
+        if c == b'\x08' {
+            if line.pop().is_some() {
+                print!("{}", c as char);
+            }
+        } else {
+            print!("{}", c as char);
+        }
+
         match c {
             b'\n' => {
                 match line.as_str() {
@@ -57,7 +64,8 @@ fn main(argc: usize, argv: Args, envp: Args) -> i32 {
                 line.clear();
                 print!(">> ");
             }
-            _ => line.push(c as char),
+            c if c != b'\x08' => line.push(c as char),
+            _ => {}
         }
     }
 }

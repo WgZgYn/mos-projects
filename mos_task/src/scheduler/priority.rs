@@ -1,9 +1,8 @@
 use crate::thread::{Priority, ThreadControlBlock};
-use crate::traits::{ReadyQueue, SchedStrategy};
-use alloc::collections::BinaryHeap;
+use crate::traits::{ReadyQueue, SchedDecision, SchedStrategy};
+use alloc::collections::{BinaryHeap, VecDeque};
 use core::cmp::Ordering;
 use core::fmt::{Debug, Formatter};
-use core::ops::Deref;
 use mos_lib::sync::KRef;
 
 pub const DEFAULT_CAPACITY: usize = 32;
@@ -56,8 +55,8 @@ impl ReadyQueue for PriorityQueue<PriorityEntry> {
     fn pop(&mut self) -> Option<KRef<ThreadControlBlock>> {
         self.0.pop().map(|entry| entry.0)
     }
-    fn peek(&self) -> Option<&ThreadControlBlock> {
-        self.0.peek().map(|entry| entry.0.deref())
+    fn peek(&self) -> Option<&KRef<ThreadControlBlock>> {
+        self.0.peek().map(|entry| &entry.0)
     }
     fn new() -> Self {
         PriorityQueue(BinaryHeap::with_capacity(DEFAULT_CAPACITY))
@@ -74,4 +73,39 @@ pub struct PriorityScheduleStrategy;
 
 impl SchedStrategy for PriorityScheduleStrategy {
     type Queue = PriorityQueue<PriorityEntry>;
+
+    fn pick_with(queue: &mut Self::Queue, task: KRef<ThreadControlBlock>) -> SchedDecision {
+        if let Some(next) = queue.peek()
+            && next.priority >= task.priority
+        {
+            SchedDecision::SwitchTo(queue.push_pop(task))
+        } else {
+            SchedDecision::KeepRunning
+        }
+    }
+}
+
+struct StaticMultiLevelPriorityQueue<const N: usize> {
+    queues: [VecDeque<KRef<ThreadControlBlock>>; N],
+}
+
+impl<const N: usize> ReadyQueue for StaticMultiLevelPriorityQueue<N> {
+    fn push(&mut self, t: KRef<ThreadControlBlock>) {
+        todo!()
+    }
+
+    fn pop(&mut self) -> Option<KRef<ThreadControlBlock>> {
+        todo!()
+    }
+
+    fn push_pop(&mut self, t: KRef<ThreadControlBlock>) -> KRef<ThreadControlBlock> {
+        todo!()
+    }
+
+    fn peek(&self) -> Option<&KRef<ThreadControlBlock>> {
+        todo!()
+    }
+    fn new() -> Self {
+        todo!()
+    }
 }

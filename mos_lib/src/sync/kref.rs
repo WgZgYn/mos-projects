@@ -5,6 +5,17 @@ use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering, fence};
 use core::task::{RawWaker, RawWakerVTable, Waker};
 
+pub trait KAllocator {
+    type Item;
+    fn alloc(&self) -> Option<NonNull<Self::Item>>;
+    fn dealloc(&self, obj: NonNull<Self::Item>);
+}
+
+struct KArc<T: RefCounted, A: KAllocator<Item = T>> {
+    ptr: NonNull<T>,
+    allocator: A,
+}
+
 /// trait for intrusive refcount structure
 pub trait RefCounted {
     /// get the intrusive refcount atomic
@@ -29,6 +40,7 @@ impl<T: RefCounted + ?Sized> KRef<T> {
     /// # Safety
     /// construct the KRef<T> from ptr
     /// need no other ref
+    /// caller ensure the unique and lifetime of the data.
     pub const unsafe fn from_ptr(ptr: NonNull<T>) -> Self {
         Self { ptr }
     }

@@ -40,6 +40,10 @@ pub enum Syscall {
 
     Mkdir = 83,
     Mkfifo = 132,
+    
+    CreateWindow,
+    WindowSync,
+    
     #[num_enum(default)]
     Unknown,
 }
