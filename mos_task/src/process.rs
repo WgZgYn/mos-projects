@@ -12,18 +12,18 @@ use lazy_static::lazy_static;
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
 use mos_arch::structs::CpuContext;
-use mos_lib::sync::{KRef, RefCounted};
 use mos_lib::Frame4KiB;
+use mos_lib::sync::{KRef, RefCounted};
+use mos_mem::PageTableManager;
 use mos_mem::slab::Slab;
 use mos_mem::virt::{MemoryArea, MemoryFlags, MemorySet};
-use mos_mem::PageTableManager;
 use mos_vfs::dentry::Dentry;
 use mos_vfs::file::File;
 use mos_vfs::vfs_root_dentry;
 use spin::Mutex;
-use x86_64::structures::paging::page::PageRange;
-use x86_64::structures::paging::Page;
 use x86_64::VirtAddr;
+use x86_64::structures::paging::Page;
+use x86_64::structures::paging::page::PageRange;
 
 pub const DEFAULT_USER_STACK_PAGES: u64 = 4; // currently only 16 KiB
 pub const DEFAULT_KERNEL_STACK_PAGES: usize = 4;
@@ -60,6 +60,11 @@ impl KernelStack {
     }
     pub fn top(&self) -> VirtAddr {
         unsafe { VirtAddr::from_ptr(self._data.as_ptr().add(self._data.len())) }
+    }
+}
+impl Default for KernelStack {
+    fn default() -> Self {
+        Self::new(DEFAULT_KERNEL_STACK_PAGES)
     }
 }
 
