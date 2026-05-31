@@ -1,15 +1,16 @@
 use crate::cpu_info::{CpuId, MAX_CPUS};
-use crate::gdt::{init_gdt, init_tss, load, Selectors};
+use crate::gdt::{Selectors, init_gdt, init_tss, load};
 use crate::sync::IrqLocked;
 use crate::{init_fpu, init_gs, init_syscall};
-use core::mem::{offset_of, MaybeUninit};
-use core::sync::atomic::AtomicUsize;
+use core::mem::{MaybeUninit, offset_of};
+use core::sync::atomic::{AtomicU64, AtomicUsize};
+use log::info;
 use mos_lib::sync::DummyLock;
 use x2apic::lapic::LocalApic;
+use x86_64::VirtAddr;
 use x86_64::registers::model_specific::GsBase;
 use x86_64::structures::gdt::GlobalDescriptorTable;
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::VirtAddr;
 
 const STACK_SIZE: usize = 4096 * 4;
 
@@ -21,6 +22,7 @@ pub struct PerCpu {
     pub current_tcb: *const u64,
     pub idle_tcb: *const u64,
     pub cpu_id: usize,
+    pub tick: AtomicU64,
     pub lapic: MaybeUninit<LocalApic>,
     pub preempt_count: AtomicUsize,
     pub gdt: GlobalDescriptorTable,
@@ -43,6 +45,7 @@ impl PerCpu {
             current_tcb: core::ptr::null(),
             idle_tcb: core::ptr::null(),
             cpu_id: 0,
+            tick: AtomicU64::new(0),
             lapic: MaybeUninit::uninit(),
             preempt_count: AtomicUsize::new(0),
             gdt: GlobalDescriptorTable::empty(),
@@ -73,6 +76,7 @@ pub unsafe fn access_mut<'a>(cpu_id: CpuId, f: impl FnOnce(&'a mut PerCpu)) {
 pub(crate) fn init(cpu_id: CpuId) {
     unsafe {
         let cpuid = cpu_id.as_usize();
+        info!("[percpu][{:?}] init start, cpu index={}", cpu_id, cpuid);
         access_mut(cpu_id, |cpu| {
             let addr = VirtAddr::from_ptr(cpu);
             let PerCpu {
@@ -84,13 +88,18 @@ pub(crate) fn init(cpu_id: CpuId) {
                 ..
             } = cpu;
             *cpu_id = cpuid;
+            info!("[percpu][{:?}] setting up TSS + GDT...", cpu_id);
             init_tss(tss, VirtAddr::from_ptr(double_fault_stack));
             let ret = init_gdt(gdt, tss);
             load(gdt, &ret);
             *selectors = ret;
+            info!("[percpu][{:?}] GDT loaded, setting GS base to {:#x}", cpu_id, addr.as_u64());
             init_gs(addr);
+            info!("[percpu][{:?}] GS base set, initializing FPU...", cpu_id);
             init_fpu();
-            init_syscall(selectors)
+            info!("[percpu][{:?}] FPU done, initializing syscall MSRs...", cpu_id);
+            init_syscall(selectors);
+            info!("[percpu][{:?}] init complete", cpu_id);
         })
     }
 }
@@ -101,4 +110,24 @@ pub unsafe fn current_raw() -> &'static PerCpu {
 
 pub unsafe fn current_raw_mut() -> &'static mut PerCpu {
     unsafe { &mut *GsBase::read().as_mut_ptr() }
+}
+
+pub fn is_gs_initialized() -> bool {
+    GsBase::read().as_u64() != 0
+}
+
+pub fn try_current_raw() -> Option<&'static PerCpu> {
+    if is_gs_initialized() {
+        Some(unsafe { current_raw() })
+    } else {
+        None
+    }
+}
+
+pub fn try_current_raw_mut() -> Option<&'static mut PerCpu> {
+    if is_gs_initialized() {
+        Some(unsafe { current_raw_mut() })
+    } else {
+        None
+    }
 }
