@@ -16,7 +16,7 @@ pub enum State {
     Ready,
 }
 
-const DEFAULT_STACK_SIZE: usize = 1024 * 4;
+const DEFAULT_STACK_SIZE: usize = 1024 * 8;
 pub const MAX_THREADS: usize = 4;
 
 static mut RUNTIME_MUT: *mut Runtime = null_mut();
