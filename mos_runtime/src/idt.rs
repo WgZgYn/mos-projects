@@ -4,7 +4,6 @@ use mos_arch::idt::{
     set_general_protection_fault_handler, set_page_fault_handler,
 };
 use mos_arch::make_interrupt_handler;
-use mos_arch::percpu::current_raw;
 use mos_arch::structs::SyscallContext;
 use mos_driver::serial_println;
 use mos_lib::sync::KRef;
@@ -77,11 +76,6 @@ make_interrupt_handler!(
     timer_handler,
     |_ctx| {
         let tick = unsafe { tick() };
-        if tick.is_multiple_of(500) {
-            unsafe {
-                serial_println!("{:?}", current_raw().cpu_id);
-            }
-        }
         let need_schedule = tick.is_multiple_of(10);
         if need_schedule {
             current_tcb().set_need_schedule();
@@ -96,7 +90,6 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_ctx: InterruptStackFrame) 
     use x86_64::instructions::port::Port;
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
-    // kernel::r#async::task::keyboard::add_scancode(scancode); // new
     mos_driver::keyboard::add_scancode(scancode);
     eoi(InterruptIndex::Keyboard.as_u8());
 }
@@ -148,6 +141,7 @@ extern "x86-interrupt" fn general_protection_handler(
     error_code: u64,
 ) {
     info!("#GP, code: {}", error_code);
+    serial_println!("#GP, code: {}", error_code);
     scheduler_debug_info(Some(&stack_frame));
 
     if stack_frame.code_segment.rpl() == PrivilegeLevel::Ring3 {
