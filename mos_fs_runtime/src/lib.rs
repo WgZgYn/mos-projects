@@ -3,6 +3,7 @@
 extern crate alloc;
 
 use alloc::sync::Arc;
+use log::info;
 use mem_fs::get_memfs_root;
 use mos_devfs::DEV_DIR_INODE;
 use mos_vfs::dentry::Dentry;
@@ -23,6 +24,7 @@ pub fn vfs_init(ramfs_addr: u64, ramfs_len: u64) {
 }
 
 pub fn load_ramfs(addr: u64, len: u64) {
+    info!("[VFS] load ramfs");
     let fs = unsafe { RamFsManager::load(core::slice::from_raw_parts_mut(addr as _, len as _)) }
         .expect("RamFsManager::load()");
     let super_block = RamFsSuperBlock::new(fs);
@@ -30,7 +32,9 @@ pub fn load_ramfs(addr: u64, len: u64) {
 }
 
 pub fn init_mount() {
+    info!("[VFS] mount devfs");
     mount_dev_fs();
+    info!("[VFS] mount memfs");
     mount_mem_fs();
 }
 

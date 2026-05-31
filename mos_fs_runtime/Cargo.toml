@@ -13,3 +13,4 @@ vfs_traits = { path = "../vfs_traits" }
 mos_vfs = { path = "../mos_vfs" }
 mos_devfs = { path = "../mos_devfs" }
 mos_task = { path = "../mos_task" }
+log = "0.4.29"
