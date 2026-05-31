@@ -288,4 +288,24 @@ mod tests {
         assert!(bitmap.get(6));
         assert_eq!(bitmap.find_first_zero(), Some(0));
     }
+
+    #[test]
+    fn test_find_first_zero() {
+        let mut bitmap = BitMap::<32>::all_zero();
+        assert_eq!(bitmap.find_first_zero(), Some(0));
+        bitmap.set_range_inclusive(0..=5);
+        assert_eq!(bitmap.find_first_zero(), Some(6));
+    }
+
+    #[test]
+    fn all_test() {
+        let mut bitmap = BitMap::<32>::all_zero();
+        bitmap.set(0);
+        bitmap.set(5);
+        assert_eq!(bitmap.find_first_zero(), Some(1));
+        assert_eq!(bitmap.find_first_set(), Some(0));
+        bitmap.clear(0);
+        assert_eq!(bitmap.find_first_zero(), Some(0));
+        assert_eq!(bitmap.find_first_set(), Some(5));
+    }
 }
