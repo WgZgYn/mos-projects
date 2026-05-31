@@ -22,6 +22,8 @@ pub enum Syscall {
     // schedule
     Yield = 24,
 
+    GetCpu = 39,
+
     Dup = 32,
     DupTo = 33,
 
@@ -41,9 +43,21 @@ pub enum Syscall {
     Mkdir = 83,
     Mkfifo = 132,
     
-    CreateWindow,
-    WindowSync,
+    CreateSemaphore,
+    SignalSemaphore,
+    WaitSemaphore,
     
+    
+    CreateThread,
+    CreateWindow,
+    WindowMarkDirty,
+    WindowSync,
+
+    // Clock (PM-timer monotonic)
+    ClockTicks,
+    ClockFreq,
+    DestroyWindow,
+
     #[num_enum(default)]
     Unknown,
 }
