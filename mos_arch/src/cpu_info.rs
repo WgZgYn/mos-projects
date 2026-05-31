@@ -1,9 +1,9 @@
+use crate::sync::SpinIrqLock;
 use core::ops::Index;
-use mos_lib::sync::DummyLock;
 
 pub const MAX_CPUS: usize = 128;
 
-static CPUS: DummyLock<Cpus<MAX_CPUS>> = DummyLock::new(Cpus::empty());
+static CPUS: SpinIrqLock<Cpus<MAX_CPUS>> = SpinIrqLock::new(Cpus::empty());
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct CpuId(usize);
@@ -56,8 +56,16 @@ impl<const N: usize> Cpus<N> {
         }
         None
     }
+    pub fn count(&self) -> usize {
+        self.count
+    }
     pub fn iter(&self) -> impl Iterator<Item = &CpuInfo> {
         self.cpus[..self.count].iter().map(|v| v.as_ref().unwrap())
+    }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CpuInfo> {
+        self.cpus[..self.count]
+            .iter_mut()
+            .map(|v| v.as_mut().unwrap())
     }
 }
 impl<const N: usize> Index<CpuId> for Cpus<N> {
@@ -68,11 +76,11 @@ impl<const N: usize> Index<CpuId> for Cpus<N> {
     }
 }
 pub fn init<F: FnOnce(&mut Cpus<MAX_CPUS>)>(f: F) {
-    unsafe { CPUS.access(f) }
+    CPUS.access(f)
 }
-pub fn access<R, F: FnOnce(&Cpus<MAX_CPUS>) -> R>(f: F) -> R {
-    unsafe { CPUS.access(|cpus| f(cpus)) }
+pub fn access_mut<R, F: FnOnce(&mut Cpus<MAX_CPUS>) -> R>(f: F) -> R {
+    CPUS.access(f)
 }
 pub fn get_cpu_id(apic_id: u32) -> Option<CpuId> {
-    access(|cpus| cpus.lookup(apic_id).map(|info| info.cpu_id))
+    CPUS.access(|cpus| cpus.lookup(apic_id).map(|info| info.cpu_id))
 }
