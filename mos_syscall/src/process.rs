@@ -40,6 +40,10 @@ use x86_64::instructions::tlb;
 use x86_64::structures::idt::InterruptStackFrameValue;
 use x86_64::structures::paging::Page;
 
+pub fn sys_getcpu() -> u64 {
+    unsafe { mos_arch::percpu::current_raw().cpu_id as u64 }
+}
+
 pub fn sys_yield() {
     current_tcb().set_need_schedule();
 }
