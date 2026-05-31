@@ -255,7 +255,9 @@ fn apply_reloc(elf: &LoadedElf, loader: &LibraryLoader) -> Result<(), &'static s
             .lookup_symbol_by_index(reloc.r_sym)
             .ok_or("symbol not found")?;
         let name = &symbol.name;
-        info!("[LINKER] try to fix {}", name);
+        if !name.is_empty() {
+            info!("[LINKER] try to fix {}", name);
+        }
 
         for lib in &elf.needed {
             // this will cause #PF to load the data, then write the fixed addr
