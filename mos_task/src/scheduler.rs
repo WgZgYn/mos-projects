@@ -13,12 +13,13 @@ use core::arch::asm;
 use core::marker::PhantomData;
 use core::ops::DerefMut;
 use core::ptr::NonNull;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::Ordering;
 use lazy_static::lazy_static;
 use log::info;
 use mos_arch::asm::__switch_context;
-use mos_arch::percpu::{current_raw, current_raw_mut};
+use mos_arch::percpu::{current_raw, current_raw_mut, try_current_raw};
 use mos_arch::sync::{SpinIrqLock, SpinIrqLockGuard};
+use mos_arch::with_disabled_interrupts;
 use mos_lib::sync::{KRef, KWake};
 use x86_64::structures::idt::InterruptStackFrame;
 
@@ -28,8 +29,6 @@ lazy_static! {
     pub static ref SCHEDULER: SpinIrqLock<Scheduler<ScheduleStrategyImpl>> =
         SpinIrqLock::new(Scheduler::new());
 }
-
-static PREEMPT_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub struct Scheduler<S: SchedStrategy> {
     ready_queue: S::Queue,
@@ -103,7 +102,7 @@ impl<S: SchedStrategy> Scheduler<S> {
         Some(new)
     }
 
-    fn context_switch(old: KRef<ThreadControlBlock>, new: KRef<ThreadControlBlock>) {
+    fn context_switch<L>(old: KRef<ThreadControlBlock>, new: KRef<ThreadControlBlock>, lock: L) {
         let old_ctx = old.context.get();
         let new_ctx = new.context.get();
         #[inline(never)]
@@ -112,6 +111,8 @@ impl<S: SchedStrategy> Scheduler<S> {
                 if !old.process.mem.share_same_page_table(&new.process.mem) {
                     new.process.mem.activate()
                 }
+                new.set_state(ThreadStateValue::Running);
+                set_current_tcb(new.clone());
                 let percpu = current_raw_mut();
                 percpu.kernel_stack_top = new.kernel_stack_top().as_mut_ptr();
                 percpu.temp_rsp = core::ptr::null_mut();
@@ -119,6 +120,7 @@ impl<S: SchedStrategy> Scheduler<S> {
             }
         }
         inner(old, new);
+        drop(lock);
         unsafe {
             __switch_context(old_ctx, new_ctx);
         }
@@ -131,31 +133,19 @@ pub enum ParkDecision<L> {
 }
 
 pub fn inc_preempt_count() {
-    PREEMPT_COUNT.fetch_add(1, Ordering::AcqRel);
+    if let Some(count) = try_current_raw() {
+        count.preempt_count.fetch_add(1, Ordering::AcqRel);
+    }
 }
 
 pub fn dec_preempt_count() {
-    assert_ne!(
-        PREEMPT_COUNT.fetch_sub(1, Ordering::AcqRel),
-        0,
-        "should not be zero"
-    );
+    if let Some(count) = try_current_raw() {
+        count.preempt_count.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 pub fn get_preempt_count() -> usize {
-    PREEMPT_COUNT.load(Ordering::Acquire)
-}
-
-pub fn schedule() {
-    let mut guard = SCHEDULER.lock();
-    let Some(new) = guard.schedule() else {
-        return;
-    };
-    let old = current_tcb();
-    set_current_tcb(new.clone());
-    new.set_state(ThreadStateValue::Running);
-    drop(guard);
-    Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
+    try_current_raw().map_or(0, |r| r.preempt_count.load(Ordering::Acquire))
 }
 
 pub fn first_schedule() -> ! {
@@ -199,15 +189,16 @@ fn set_current_tcb(tcb: KRef<ThreadControlBlock>) {
     }
 }
 
+pub fn schedule() {
+    schedule_and_switch(SCHEDULER.lock())
+}
+
 fn schedule_and_switch<T: SchedStrategy>(mut guard: SpinIrqLockGuard<Scheduler<T>>) {
     let Some(new) = guard.schedule() else {
         return;
     };
     let old = current_tcb();
-    set_current_tcb(new.clone());
-    new.set_state(ThreadStateValue::Running);
-    drop(guard);
-    Scheduler::<ScheduleStrategyImpl>::context_switch(old, new);
+    Scheduler::<ScheduleStrategyImpl>::context_switch(old, new, guard);
 }
 
 pub fn wake_blocked_task(provider: impl IntoIterator<Item = KRef<ThreadControlBlock>>) {

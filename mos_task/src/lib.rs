@@ -11,6 +11,7 @@ pub mod scheduler;
 pub mod thread;
 mod traits;
 pub mod wait_queue;
+pub mod semaphore;
 
 /// enqueue ready task
 pub fn enqueue_task(task: KRef<ThreadControlBlock>) {
