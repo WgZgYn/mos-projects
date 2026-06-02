@@ -7,6 +7,7 @@ use crate::structs::FpuState;
 use core::arch::asm;
 use core::arch::x86_64::_rdtsc;
 use lazy_static::lazy_static;
+use log::info;
 use x86_64::VirtAddr;
 use x86_64::instructions::random::RdRand;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
@@ -98,6 +99,25 @@ pub fn disable_interrupts() {
 
 pub fn with_disabled_interrupts<R, F: FnOnce() -> R>(f: F) -> R {
     x86_64::instructions::interrupts::without_interrupts(f)
+}
+
+/// 沿 RBP 帧链回溯，打印返回地址到串口 (用于崩溃诊断)
+/// # Safety
+/// 仅在崩溃路径调用。
+pub unsafe fn dump_stack_frames(mut rbp: u64, max_frames: usize) {
+    for i in 0..max_frames {
+        if rbp == 0 || rbp < 0xFFFF_8000_0000_0000 {
+            break;
+        }
+        let frame_ptr = rbp as *const u64;
+        let saved_rbp = unsafe { frame_ptr.read_volatile() };
+        let ret_addr = unsafe { frame_ptr.add(1).read_volatile() };
+        info!("  #{} rbp={:#x} ret={:#x}", i, rbp, ret_addr);
+        if saved_rbp <= rbp || saved_rbp == 0 {
+            break;
+        }
+        rbp = saved_rbp;
+    }
 }
 
 pub fn page_table_base_frame() -> PhysFrame {
