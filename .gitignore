@@ -3,3 +3,6 @@
 *.*/target
 /build/*
 user/target
+settings.local.json
+.idea
+/user/.idea
