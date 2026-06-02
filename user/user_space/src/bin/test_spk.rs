@@ -20,9 +20,7 @@ fn main() -> i32 {
             write(self.0, &[0, 0, 0, 0]);
         }
     }
-
     note::SimpleAudio::new(97, PcSpeakerBlock(spk)).play(AUDIO);
-
     println!("[TEST_SPK] finish");
     0
 }

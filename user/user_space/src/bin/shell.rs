@@ -12,8 +12,9 @@ use user_lib::{Args, chdir, exec, execve, exit, fork, get_char, open, print, pri
 
 #[unsafe(no_mangle)]
 fn main(argc: usize, argv: Args, envp: Args) -> i32 {
-    println!("MOS Shell");
+    println!("[shell] mos shell startup");
 
+    println!("[shell] print process args and envp");
     unsafe {
         let argv = core::slice::from_raw_parts(argv, argc);
         let envp = NullEndPointerArray::from_ptr(envp);
@@ -25,6 +26,8 @@ fn main(argc: usize, argv: Args, envp: Args) -> i32 {
             println!("env[{}] {:?}", i, CStr::from_ptr(env));
         })
     }
+
+    println!("[shell] ready to get input");
 
     print!(">> ");
     let mut line = String::new();
