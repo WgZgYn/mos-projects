@@ -56,6 +56,8 @@ pub fn init_timer() {
 pub enum InterruptIndex {
     Timer = PIC_1_OFFSET,
     Keyboard,
+    // IRQ12 = PIC2 offset + 4 = 40 + 4 = 44
+    Mouse = PIC_2_OFFSET + 4,
 }
 
 impl InterruptIndex {

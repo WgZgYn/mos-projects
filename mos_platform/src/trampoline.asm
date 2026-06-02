@@ -2,8 +2,13 @@
  * AP trampoline
  * load addr: 0x8000 (fixed physical address)
  * SIPI vector: load_addr >> 12 = 0x08
- * BOOT DATA: 0x7000 (fixed physical address)
- * BOOT STACK: 0x9000 ~ 0xA000
+ * TEMP PML4: 0x6000 (the page itself IS the PML4, copied from BSP)
+ * BOOT DATA: 0x7000 (struct BootData)
+ * TEMP STACK: 0x9000 ~ 0xA000 (real-mode / 32-bit only)
+ *
+ * Flow:
+ *   real → 32-bit prot → cr3 = 0x6000 → enable paging → 64-bit long
+ *   → load real CR3 from BootData → call ap_main
  * ========================================================= */
 
 .section .text
@@ -50,13 +55,9 @@ protected_mode_entry:
     movw %ax, %ss
     movl $0xA000, %esp
 
-    # boot_data pointer is passed in memory (fixed location)
-    # 0x7000 = struct boot_data
-    movl $0x7000, %eax
-
-    # load CR3
-    movl (%eax), %ebx
-    movl %ebx, %cr3
+    # 0x6000 IS the temp PML4 page (guaranteed < 4GB, 32-bit safe)
+    movl $0x6000, %eax
+    movl %eax, %cr3
 
     # enable PAE
     movl %cr4, %eax
@@ -102,6 +103,8 @@ long_mode_entry:
     movq 8(%rax), %rsp
     andq $~0xF, %rsp
 
+    movq (%rax), %rbx        # 从 BootData 加载 64 位 CR3 值
+    movq %rbx, %cr3
 
     movq 24(%rax), %rbx      # 从 BootData 加载 64 位 CR0 值
     movq %rbx, %cr0

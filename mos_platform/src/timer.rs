@@ -1,28 +1,9 @@
 use crate::acpi::{pm_timer_freq, pm_timer_mask, pm_timer_tick};
 use alloc::vec::Vec;
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::Ordering;
 use core::task::Waker;
+use mos_arch::percpu::{current_raw, try_current_raw};
 use mos_arch::sync::SpinIrqLock;
-
-pub struct SystemTimer {
-    counter: AtomicU64,
-}
-
-impl SystemTimer {
-    const fn new() -> Self {
-        Self {
-            counter: AtomicU64::new(0),
-        }
-    }
-
-    fn tick(&self) -> u64 {
-        self.counter.fetch_add(1, Ordering::Relaxed) + 1
-    }
-
-    pub fn get_tick(&self) -> u64 {
-        self.counter.load(Ordering::Relaxed)
-    }
-}
 
 #[derive(Default)]
 struct MonotonicClock {
@@ -70,27 +51,30 @@ struct TimerQueue {
 
 impl TimerQueue {
     const fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     fn add_timer(&mut self, deadline: u64, waker: Waker) {
         self.entries.push(TimerEntry { deadline, waker });
     }
 
-    fn wake_expired(&mut self, now: u64) {
+    fn wake_expired(&mut self, now: u64) -> Vec<Waker> {
+        let mut wakers = Vec::new();
         let mut idx = 0;
         while idx < self.entries.len() {
             if self.entries[idx].deadline <= now {
                 let entry = self.entries.swap_remove(idx);
-                entry.waker.wake();
+                wakers.push(entry.waker);
             } else {
                 idx += 1;
             }
         }
+        wakers
     }
 }
 
-static SYSTEM_TIMER: SystemTimer = SystemTimer::new();
 static MONOTONIC_CLOCK: SpinIrqLock<MonotonicClock> = SpinIrqLock::new(MonotonicClock::new());
 static TIMER_QUEUE: SpinIrqLock<TimerQueue> = SpinIrqLock::new(TimerQueue::new());
 
@@ -150,12 +134,17 @@ pub fn add_timer(deadline: u64, waker: Option<Waker>) -> bool {
 /// # Safety
 /// called by interrupt context
 pub unsafe fn tick() -> u64 {
-    let tick = SYSTEM_TIMER.tick();
+    let tick = unsafe { current_raw().tick.fetch_add(1, Ordering::Relaxed) + 1 };
     let now = monotonic_ticks();
-    TIMER_QUEUE.access(|queue| queue.wake_expired(now));
+    // drain expired wakers under lock, then wake them OUTSIDE the lock
+    // to avoid AB-BA deadlock: TIMER_QUEUE → wake → SCHEDULER vs SCHEDULER → TIMER_QUEUE
+    let wakers = TIMER_QUEUE.access(|queue| queue.wake_expired(now));
+    for waker in wakers {
+        waker.wake();
+    }
     tick
 }
 
 pub fn get_tick() -> u64 {
-    SYSTEM_TIMER.get_tick()
+    try_current_raw().map_or(0, |c| c.tick.load(Ordering::Relaxed))
 }

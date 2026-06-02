@@ -15,6 +15,7 @@ use x2apic::lapic::{LocalApic, TimerDivide, TimerMode};
 use x86_64::registers::control::{Cr0, Cr3, Cr4, Efer};
 use x86_64::structures::gdt::Descriptor;
 use x86_64::structures::paging::OffsetPageTable;
+use mos_arch::percpu::current_raw_mut;
 
 fn load_tables<H: Handler>(rsdp: usize, handler: H) -> AcpiTables<H> {
     unsafe {
@@ -70,11 +71,11 @@ fn log_bsp_context() {
     let efer = Efer::read();
 
     serial_println!("[ACPI] cr0 0x{:x}", cr0);
-    serial_println!("cr3 0x{:x}", cr3);
-    serial_println!("cr4 0x{:x}", cr4);
-    serial_println!("efer 0x{:x}", efer);
-    serial_println!("64 KERNEL CODE: {:X?}", Descriptor::kernel_code_segment());
-    serial_println!("64 KERNEL DATA: {:X?}", Descriptor::kernel_data_segment());
+    serial_println!("\tcr3 0x{:x}", cr3);
+    serial_println!("\tcr4 0x{:x}", cr4);
+    serial_println!("\tefer 0x{:x}", efer);
+    serial_println!("\t64 KERNEL CODE: {:X?}", Descriptor::kernel_code_segment());
+    serial_println!("\t64 KERNEL DATA: {:X?}", Descriptor::kernel_data_segment());
 }
 
 fn init_pm_timer(pm_timer: PmTimer) {
@@ -87,13 +88,13 @@ fn init_ioapic(ioapic_base: u64) -> IoApic {
     let mut ioapic = unsafe { IoApic::new(ioapic_base) };
     unsafe {
         ioapic.init(0x20);
-        ioapic.enable_irq(1);
+        ioapic.enable_irq(1);  // keyboard
+        ioapic.enable_irq(12); // PS/2 mouse
     }
     ioapic
 }
 fn init_lapic_inner(xapic_base: u64) -> LocalApic {
     const CALIBRATION_TIMER_INITIAL: u32 = u32::MAX;
-    // 10ms
     const CALIBRATION_TARGET_PM_TICKS: u64 = PM_TIMER_HZ / 1000 * 10;
 
     let mut lapic = x2apic::lapic::LocalApicBuilder::new()
@@ -109,6 +110,15 @@ fn init_lapic_inner(xapic_base: u64) -> LocalApic {
 
     unsafe {
         lapic.enable();
+        // x2apic crate's disable_local_interrupt_pins() writes 0 to LINT0/LINT1,
+        // leaving them unmasked with vector=0. Mask them properly.
+        if crate::is_x2apic_enabled() {
+            x86_64::registers::model_specific::Msr::new(0x835).write(1 << 16);
+            x86_64::registers::model_specific::Msr::new(0x836).write(1 << 16);
+        } else {
+            core::ptr::write_volatile((xapic_base + 0x350) as *mut u32, 1 << 16);
+            core::ptr::write_volatile((xapic_base + 0x360) as *mut u32, 1 << 16);
+        }
         let start = pm_timer_tick();
         while pm_timer_elapsed_since(start) < CALIBRATION_TARGET_PM_TICKS as u32 {
             core::hint::spin_loop();
@@ -116,22 +126,41 @@ fn init_lapic_inner(xapic_base: u64) -> LocalApic {
         let pm_duration = pm_timer_elapsed_since(start);
         let lapic_timer_current = lapic.timer_current();
         let lapic_duration = CALIBRATION_TIMER_INITIAL - lapic_timer_current;
-        // lapic timer start -> pm_timer start -> pm_timer stop -> lapic timer stop
-        // lapic ticks time maybe a bit higher than pm ticks time
-        info!(
-            "[PM Timer]: 10ms busy loop, pm_duration: {}, lapic_duration: {}",
-            pm_duration, lapic_duration
-        );
         const LAPIC_TIMER_DIV: u64 = 1;
         let lapic_hz = PM_TIMER_HZ * lapic_duration as u64 / pm_duration as u64;
         let initial = lapic_hz / (OS_HZ * LAPIC_TIMER_DIV);
         if initial >= u32::MAX as u64 {
-            panic!("lapic hz too high!");
+            panic!("lapic hz too high! lapic_hz={}, initial={}", lapic_hz, initial);
         }
-        info!("[Lapic Timer]: initial {}", initial);
         lapic.set_timer_mode(TimerMode::Periodic);
         lapic.set_timer_divide(TimerDivide::Div1);
         lapic.set_timer_initial(initial as u32);
+        // 显式清除 LVT Timer 的 Mask 位 (bit 16)
+        // x2apic crate 的 set_timer_mode 在实机上可能不清除 mask 位，
+        // 导致 timer 中断被屏蔽。QEMU 默认 mask=0 所以不受影响。
+        if crate::is_x2apic_enabled() {
+            let mut lvt = x86_64::registers::model_specific::Msr::new(0x832).read();
+            lvt &= !(1u64 << 16);
+            x86_64::registers::model_specific::Msr::new(0x832).write(lvt);
+        } else {
+            let mut lvt = core::ptr::read_volatile((xapic_base + 0x320) as *const u32);
+            lvt &= !(1u32 << 16);
+            core::ptr::write_volatile((xapic_base + 0x320) as *mut u32, lvt);
+        }
+        // verify: read back LVT timer + TCCR to confirm timer is properly configured
+        let tccr1 = lapic.timer_current();
+        // short spin to see if timer is counting down
+        for _ in 0..1000 { core::hint::spin_loop(); }
+        let tccr2 = lapic.timer_current();
+        let lvt = if crate::is_x2apic_enabled() {
+            x86_64::registers::model_specific::Msr::new(0x832).read()
+        } else {
+            core::ptr::read_volatile((xapic_base + 0x320) as *const u32) as u64
+        };
+        info!(
+            "[LAPIC] apic_id={}, hz={}, period={}, tccr1={}, tccr2={}, lvt={:#x}",
+            lapic.id(), lapic_hz, initial, tccr1, tccr2, lvt
+        );
     }
     lapic
 }
@@ -151,24 +180,15 @@ pub fn init(rsdp: u64, mapper: &OffsetPageTable<'static>) {
         serial_println!("[ACPI] init cpus info failed");
     }
 
-    serial_println!("ACPI InterruptModel: \n{:?}", platform.interrupt_model);
-    serial_println!("ACPI ProcessorInfo: \n{:?}", platform.processor_info);
-    serial_println!("ACPI PowerProfile: \n{:?}", platform.power_profile);
-    serial_println!("ACPI PmTimer: \n{:?}", platform.pm_timer);
-    serial_println!("ACPI Tables DSDT: \n{:?}", platform.tables.dsdt());
-    serial_println!("ACPI Tables SSDTS: \n");
+    serial_println!("ACPI InterruptModel: {:?}", platform.interrupt_model);
+    serial_println!("ACPI ProcessorInfo: {:?}", platform.processor_info);
+    serial_println!("ACPI PowerProfile: {:?}", platform.power_profile);
+    serial_println!("ACPI PmTimer: {:?}", platform.pm_timer);
+    serial_println!("ACPI Tables DSDT: {:?}", platform.tables.dsdt());
+    serial_println!("ACPI Tables SSDTS: ");
     platform.tables.ssdts().for_each(|table| {
         serial_println!("{:?}", table);
     });
-
-    let madt = platform.tables.find_table::<Madt>();
-    if let Some(madt) = madt {
-        let p = madt.get();
-        info!("MADT: {:x?}", p);
-        for entry in p.entries() {
-            info!("Entry: {:x?}", entry);
-        }
-    }
 
     let InterruptModel::Apic(apic) = platform.interrupt_model else {
         panic!("Unsupported platform");
@@ -199,7 +219,8 @@ pub fn init(rsdp: u64, mapper: &OffsetPageTable<'static>) {
 
 pub fn eoi() {
     if let Ok(acpi) = APIC.try_get() {
-        unsafe { acpi.bsp_lapic.lock().end_of_interrupt() }
+        // unsafe { acpi.bsp_lapic.lock().end_of_interrupt() }
+        unsafe { current_raw_mut().lapic.assume_init_mut().end_of_interrupt() }
     }
 }
 
