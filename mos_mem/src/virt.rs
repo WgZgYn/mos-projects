@@ -8,11 +8,13 @@ use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
 use mos_arch::sync::SpinIrqLock;
 use mos_lib::utils::Defer;
 use vfs_traits::Inode;
-use x86_64::registers::control::Cr3Flags;
+use x86_64::registers::control::{Cr3, Cr3Flags};
 use x86_64::structures::paging::mapper::TranslateError;
 use x86_64::structures::paging::page::PageRange;
+use x86_64::structures::paging::mapper::MapToError;
 use x86_64::structures::paging::{
-    FrameDeallocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Translate,
+    FrameDeallocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Size4KiB,
+    Translate,
 };
 use x86_64::{PhysAddr, VirtAddr};
 use vfs_common::IoContext;
@@ -345,6 +347,22 @@ impl MemoryAreas {
     }
 
     /// only record the virtual memory field, not alloc the frame
+    /// 热切映射物理帧到当前页表。
+    /// 用于需要直接控制物理地址的场景 (如用户态 framebuffer)。
+    pub fn map_page_eagerly(
+        &mut self,
+        page: Page<Size4KiB>,
+        frame: PhysFrame<Size4KiB>,
+        flags: PageTableFlags,
+    ) -> Result<(), MapToError<Size4KiB>> {
+        unsafe {
+            self.mapper
+                .map_to(page, frame, flags, &mut PhysicalFrameManager)?
+                .flush();
+        }
+        Ok(())
+    }
+
     pub fn try_add_area(&mut self, area: MemoryArea) -> Result<(), &'static str> {
         // check overlap
         if self.check_overlap(&area.range) {
@@ -515,6 +533,9 @@ impl MemorySet {
             PhysicalFrameManager.ref_inc(frame);
             Ok(())
         })?;
+
+        x86_64::instructions::tlb::flush_all();
+
         Ok(())
     }
 
