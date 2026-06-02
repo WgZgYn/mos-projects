@@ -1,8 +1,7 @@
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use conquer_once::spin::OnceCell;
 use core::fmt;
-use mos_arch::with_disabled_interrupts;
-use mos_lib::sync::DummyLock;
+use mos_arch::sync::SpinIrqLock;
 use noto_sans_mono_bitmap::{
     get_raster, get_raster_width, FontWeight, RasterHeight, RasterizedChar,
 };
@@ -220,29 +219,21 @@ impl fmt::Write for FrameBufferWriter {
     }
 }
 
-/// because the buffer is used as logger,
-/// the logger is without interrupt
-/// so here use no lock
-pub static FRAME_BUFFER: OnceCell<DummyLock<FrameBufferWriter>> = OnceCell::uninit();
+pub static FRAME_BUFFER: OnceCell<SpinIrqLock<FrameBufferWriter>> = OnceCell::uninit();
 pub fn init(fb: &'static mut FrameBuffer) -> FrameBufferInfo {
     let info = fb.info();
     let bf = fb.buffer_mut();
-    FRAME_BUFFER.init_once(|| DummyLock::new(FrameBufferWriter::new(bf, info)));
+    FRAME_BUFFER.init_once(|| SpinIrqLock::new(FrameBufferWriter::new(bf, info)));
     info
 }
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    with_disabled_interrupts(|| {
-        if let Ok(f) = FRAME_BUFFER.try_get() {
-            unsafe {
-                f.access(|f| {
-                    let _ = f.write_fmt(args);
-                })
-            }
-        }
-    })
+    if let Ok(f) = FRAME_BUFFER.try_get() {
+        let mut guard = f.lock();
+        let _ = guard.write_fmt(args);
+    }
 }
 
 /// Prints to the host through the serial interface.
