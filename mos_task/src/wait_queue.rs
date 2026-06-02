@@ -15,7 +15,12 @@ impl WaitQueueInner {
     pub const fn new() -> Self {
         WaitQueueInner(VecDeque::new())
     }
-
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn wait_task(&mut self, task: KRef<ThreadControlBlock>) {
         self.0.push_back(task);
     }
@@ -27,6 +32,9 @@ impl WaitQueueInner {
     }
 }
 
+/// 等待队列 — 使用 spin::Mutex 而非 SpinIrqLock。
+/// 所有 WaitQueue 访问都在 SCHEDULER 锁内 (已关中断),
+/// 若用 SpinIrqLock 会在 Park 路径上恢复 IRQ 导致同核死锁。
 pub struct WaitQueue {
     queue: spin::Mutex<WaitQueueInner>,
 }

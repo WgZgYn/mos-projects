@@ -107,6 +107,12 @@ impl ThreadState {
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Debug)]
 pub struct Priority(pub u8);
 
+impl Default for Priority {
+    fn default() -> Self {
+        Priority(DEFAULT_THREAD_PRIORITY)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct VRunTime(AtomicU64);
 
@@ -246,7 +252,7 @@ impl ThreadControlBlock {
             init_fpu_state(fpu);
         }
     }
-    pub(crate) fn get_state(&self) -> ThreadStateValue {
+    pub fn get_state(&self) -> ThreadStateValue {
         self.state.load()
     }
     pub(crate) fn set_state(&self, state: ThreadStateValue) {
