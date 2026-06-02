@@ -5,7 +5,7 @@ extern crate alloc;
 mod adapter;
 mod compositor;
 pub mod traits;
-mod window;
+pub mod window;
 pub mod console;
 
 use alloc::sync::Arc;
@@ -104,4 +104,33 @@ pub fn render_to_framebuffer() {
 
 pub fn new_window(info: Rect) -> SharedWindow {
     compositor::new_window(info)
+}
+
+// ─── 用户态窗口 API (供 mos_syscall 调用) ──────────
+
+use crate::window::SharedSurface;
+
+pub fn register_user_window(
+    window: Arc<Mutex<Window<SharedSurface>>>,
+    pid: u64,
+) -> u64 {
+    compositor::register_user_window(window, pid)
+}
+
+pub fn mark_user_window_dirty(window_id: u64, x: usize, y: usize, w: usize, h: usize) -> bool {
+    compositor::mark_window_dirty(window_id, x, y, w, h)
+}
+
+pub fn destroy_user_window(window_id: u64) {
+    compositor::destroy_user_window(window_id)
+}
+
+// ─── 光标 API ──────────────────────────────────────
+
+pub fn update_cursor(x: usize, y: usize) {
+    compositor::update_cursor(x, y);
+}
+
+pub fn cursor_position() -> (usize, usize) {
+    compositor::cursor_position()
 }

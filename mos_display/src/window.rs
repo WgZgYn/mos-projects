@@ -101,3 +101,59 @@ impl Surface {
         }
     }
 }
+
+/// 用户态共享像素缓冲区 — 内核和用户进程共享同一块物理内存。
+/// `ptr` 指向内核 VA，用户进程通过映射到用户 VA 的同一物理帧直接写入。
+pub struct SharedSurface {
+    width: usize,
+    height: usize,
+    pitch: usize,
+    ptr: *mut RGBA,
+}
+
+unsafe impl Send for SharedSurface {}
+unsafe impl Sync for SharedSurface {}
+
+impl SharedSurface {
+    /// # Safety
+    /// `ptr` 必须指向 width * height * 4 字节的已清零连续内存，
+    /// 且在其生命周期内保持有效。
+    pub unsafe fn new(width: usize, height: usize, pitch: usize, ptr: *mut RGBA) -> Self {
+        Self {
+            width,
+            height,
+            pitch,
+            ptr,
+        }
+    }
+}
+
+impl PixelBuffer for SharedSurface {
+    #[inline]
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    #[inline]
+    fn height(&self) -> usize {
+        self.height
+    }
+
+    #[inline]
+    fn row(&self, y: usize) -> Option<&[RGBA]> {
+        if y >= self.height {
+            return None;
+        }
+        let start = y * self.pitch;
+        Some(unsafe { core::slice::from_raw_parts(self.ptr.add(start), self.width) })
+    }
+
+    #[inline]
+    fn row_mut(&mut self, y: usize) -> Option<&mut [RGBA]> {
+        if y >= self.height {
+            return None;
+        }
+        let start = y * self.pitch;
+        Some(unsafe { core::slice::from_raw_parts_mut(self.ptr.add(start), self.width) })
+    }
+}
