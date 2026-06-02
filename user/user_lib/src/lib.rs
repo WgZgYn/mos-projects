@@ -7,9 +7,11 @@ mod os;
 mod syscall;
 
 use crate::syscall::{
-    sys_brk, sys_chdir, sys_close, sys_dup, sys_dup2, sys_execve, sys_exit, sys_fork, sys_getdents,
-    sys_mkfifo, sys_mmap, sys_munmap, sys_open, sys_pipe, sys_rand, sys_read, sys_sleep, sys_wait,
-    sys_write, sys_yield,
+    sys_brk, sys_chdir, sys_clock_freq, sys_clock_ticks, sys_close, sys_create_thread,
+    sys_create_window, sys_destroy_window, sys_dup, sys_dup2, sys_execve, sys_exit, sys_fork,
+    sys_getcpu, sys_getdents, sys_mkfifo, sys_mmap, sys_munmap, sys_open, sys_pipe, sys_rand,
+    sys_read, sys_sem_create, sys_sem_signal, sys_sem_wait, sys_sleep, sys_wait,
+    sys_window_mark_dirty, sys_window_sync, sys_write, sys_yield,
 };
 use core::arch::global_asm;
 use core::ffi::{CStr, c_char};
@@ -103,17 +105,6 @@ pub fn init_heap() {
 
         let size = new_brk as usize - old_brk as usize;
         HEAP.lock().init(old_brk as _, size);
-
-        // let guard = HEAP.lock();
-        // println!(
-        //     "heap_info, size: {}, top: {:?}, bottom: {:?}, free: {}, used: {}",
-        //     guard.size(),
-        //     guard.top(),
-        //     guard.bottom(),
-        //     guard.free(),
-        //     guard.used()
-        // );
-        // println!("new_brk: {:x?}, old_brk: {:x?}", new_brk, old_brk);
     }
 }
 
@@ -155,6 +146,9 @@ pub fn rand() -> u64 {
 
 pub fn yield_() {
     sys_yield();
+}
+pub fn getcpu() -> u64 {
+    sys_getcpu()
 }
 pub fn sleep(ms: u64) {
     sys_sleep(ms);
@@ -251,4 +245,77 @@ pub fn dup(fd: FileDesc) -> Option<FileDesc> {
 pub fn dup2(src: FileDesc, dst: FileDesc) -> bool {
     let ret = sys_dup2(src.0 as _, dst.0 as _);
     ret == 0
+}
+
+pub fn create_thread(entry: *const fn() -> !, stack: *mut u64) -> u64 {
+    sys_create_thread(entry as _, stack as _)
+}
+
+pub fn sem_create(initial: u64) -> u64 {
+    sys_sem_create(initial)
+}
+pub fn sem_signal(sem_id: u64) {
+    sys_sem_signal(sem_id)
+}
+pub fn sem_wait(sem_id: u64) {
+    sys_sem_wait(sem_id)
+}
+
+/// PM-timer 单调时钟 (ticks, 64-bit 累积值)
+pub fn clock_ticks() -> u64 {
+    sys_clock_ticks()
+}
+/// PM-timer 频率 (Hz, 通常为 3579545)
+pub fn clock_freq() -> u64 {
+    sys_clock_freq()
+}
+/// 单调时间 (微秒)
+pub fn clock_us() -> u64 {
+    let ticks = sys_clock_ticks();
+    (ticks as u128 * 1_000_000 / sys_clock_freq() as u128) as u64
+}
+
+// ─── 用户态窗口 API ─────────────────────────────
+
+/// create_window 返回信息
+#[repr(C)]
+pub struct WindowInfo {
+    pub id: u64,
+    pub pixels_ptr: u64,
+    pub width: u64,
+    pub height: u64,
+    pub pitch: u64,
+}
+
+/// 创建一个窗口，返回共享像素缓冲区的用户态指针。
+/// 用户直接写入 RGBA 像素 (每像素 4 字节, 行优先, pitch 步长)。
+pub fn create_window(x: u64, y: u64, w: u64, h: u64) -> Option<WindowInfo> {
+    let mut out = [0u64; 5];
+    let ret = sys_create_window(x, y, w, h, out.as_mut_ptr());
+    if ret == u64::MAX {
+        return None;
+    }
+    Some(WindowInfo {
+        id: out[0],
+        pixels_ptr: out[1],
+        width: out[2],
+        height: out[3],
+        pitch: out[4],
+    })
+}
+
+/// 标记窗口内的脏矩形 (窗口坐标系, 0,0 为左上角)。
+/// 可多次调用累积多个脏区域。
+pub fn window_mark_dirty(win_id: u64, x: u64, y: u64, w: u64, h: u64) {
+    sys_window_mark_dirty(win_id, x, y, w, h)
+}
+
+/// 将所有窗口的累积脏区域提交到帧缓冲。
+pub fn window_sync() {
+    sys_window_sync()
+}
+
+/// 销毁窗口并释放其物理帧。
+pub fn destroy_window(win_id: u64) {
+    sys_destroy_window(win_id)
 }

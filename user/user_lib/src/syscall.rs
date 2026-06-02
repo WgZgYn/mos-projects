@@ -67,6 +67,9 @@ pub fn sys_rand() -> u64 {
 pub fn sys_yield() -> u64 {
     syscall(Syscall::Yield as _, [0, 0, 0])
 }
+pub fn sys_getcpu() -> u64 {
+    syscall(Syscall::GetCpu as _, [0, 0, 0])
+}
 pub fn sys_execve(
     path: *const c_char,
     args: *const *const c_char,
@@ -116,4 +119,34 @@ pub fn sys_dup(fd: u32) -> isize {
 }
 pub fn sys_dup2(src_fd: u32, dst_fd: u32) -> isize {
     syscall(Syscall::DupTo as _, [src_fd as _, dst_fd as _, 0]) as _
+}
+pub fn sys_create_thread(entry: u64, stack: u64) -> u64 {
+    syscall(Syscall::CreateThread as _, [entry as _, stack as _, 0]) as _
+}
+pub fn sys_sem_create(init: u64) -> u64 {
+    syscall(Syscall::CreateSemaphore as _, [init, 0, 0])
+}
+pub fn sys_sem_signal(sem_id: u64) {
+    syscall(Syscall::SignalSemaphore as _, [sem_id, 0, 0]);
+}
+pub fn sys_sem_wait(sem_id: u64) {
+    syscall(Syscall::WaitSemaphore as _, [sem_id, 0, 0]);
+}
+pub fn sys_clock_ticks() -> u64 {
+    syscall(Syscall::ClockTicks as _, [0, 0, 0])
+}
+pub fn sys_clock_freq() -> u64 {
+    syscall(Syscall::ClockFreq as _, [0, 0, 0])
+}
+pub fn sys_create_window(x: u64, y: u64, w: u64, h: u64, out: *mut u64) -> u64 {
+    syscall_v2(Syscall::CreateWindow as _, [x, y, w, h, out as u64, 0])
+}
+pub fn sys_window_mark_dirty(win_id: u64, x: u64, y: u64, w: u64, h: u64) {
+    syscall_v2(Syscall::WindowMarkDirty as _, [win_id, x, y, w, h, 0]);
+}
+pub fn sys_window_sync() {
+    syscall(Syscall::WindowSync as _, [0, 0, 0]);
+}
+pub fn sys_destroy_window(win_id: u64) {
+    syscall(Syscall::DestroyWindow as _, [win_id, 0, 0]);
 }
