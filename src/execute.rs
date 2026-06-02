@@ -177,8 +177,8 @@ pub fn build_image(
         boot_config.log_level = bootloader_boot_config::LevelFilter::Off;
         boot_config.frame_buffer_logging = false;
         boot_config.serial_logging = true;
-        boot_config.frame_buffer.minimum_framebuffer_width = Some(1000);
-        boot_config.frame_buffer.minimum_framebuffer_height = Some(800);
+        boot_config.frame_buffer.minimum_framebuffer_width = Some(2560);
+        boot_config.frame_buffer.minimum_framebuffer_height = Some(1600);
 
         let boot_mode = boot_mode.unwrap_or(BootMode::Uefi);
         let image_out = image_output_naming(kernel_name, boot_mode);
