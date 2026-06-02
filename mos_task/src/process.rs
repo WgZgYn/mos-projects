@@ -26,7 +26,7 @@ use x86_64::structures::paging::Page;
 use x86_64::structures::paging::page::PageRange;
 
 pub const DEFAULT_USER_STACK_PAGES: u64 = 4; // currently only 16 KiB
-pub const DEFAULT_KERNEL_STACK_PAGES: usize = 4;
+pub const DEFAULT_KERNEL_STACK_PAGES: usize = 8;
 
 lazy_static! {
     pub static ref KERNEL: KRef<ProcessControlBlock> = ProcessControlBlock::kernel();
