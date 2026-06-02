@@ -3,7 +3,7 @@ use mos_arch::idt::{
     set_breakpoint_handler, set_double_fault_handler, set_general_handler,
     set_general_protection_fault_handler, set_page_fault_handler,
 };
-use mos_arch::make_interrupt_handler;
+use mos_arch::{dump_stack_frames, make_interrupt_handler};
 use mos_arch::structs::SyscallContext;
 use mos_driver::serial_println;
 use mos_lib::sync::KRef;
@@ -30,6 +30,7 @@ use x86_64::{PrivilegeLevel, VirtAddr};
 enum IDTIndexEnum {
     Timer = InterruptIndex::Timer.as_u8(),
     Keyboard = InterruptIndex::Keyboard.as_u8(),
+    Mouse = InterruptIndex::Mouse.as_u8(),
     Trap = 0x80,
 }
 
@@ -45,6 +46,7 @@ pub fn install_handlers() {
     set_breakpoint_handler(breakpoint_handler);
     set_general_protection_fault_handler(general_protection_handler);
     set_general_handler(IDTIndexEnum::Keyboard.as_u8(), keyboard_interrupt_handler);
+    set_general_handler(IDTIndexEnum::Mouse.as_u8(), mouse_interrupt_handler);
     set_general_handler(IDTIndexEnum::Timer.as_u8(), timer_handler);
     set_general_handler(IDTIndexEnum::Trap.as_u8(), trap_handler);
 }
@@ -94,6 +96,16 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_ctx: InterruptStackFrame) 
     eoi(InterruptIndex::Keyboard.as_u8());
 }
 
+extern "x86-interrupt" fn mouse_interrupt_handler(_ctx: InterruptStackFrame) {
+    use x86_64::instructions::port::Port;
+    let status: u8 = unsafe { Port::new(0x64).read() };
+    if status & 0x20 != 0 {
+        let data: u8 = unsafe { Port::new(0x60).read() };
+        mos_driver::ps2_mouse::add_mouse_byte(data);
+    }
+    eoi(InterruptIndex::Mouse.as_u8());
+}
+
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     info!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
 }
@@ -114,7 +126,7 @@ extern "x86-interrupt" fn page_fault_handler(
     let addr = Cr2::read();
     let current_tcb = current_tcb();
     let is_from_user = stack_frame.code_segment.rpl() == PrivilegeLevel::Ring3;
-    let handler_result = page_fault_helper(error_code, addr, current_tcb);
+    let handler_result = page_fault_helper(error_code, addr, current_tcb.clone());
 
     if let Err(e) = handler_result {
         info!("[PF] unrecoverable page fault ({})", e);
@@ -126,6 +138,21 @@ extern "x86-interrupt" fn page_fault_handler(
         if is_from_user {
             user_space_panic_handler(stack_frame);
         } else {
+            // 崩溃前打印当前任务信息到串口和屏幕
+            let tcb = current_tcb;
+            let proc = &tcb.process;
+            serial_println!(
+                "[PANIC] #PF addr={:?} rip={:#x} rsp={:#x}",
+                Cr2::read(), stack_frame.instruction_pointer, stack_frame.stack_pointer
+            );
+            serial_println!(
+                "[PANIC] tid={:?} pid={:?} state={:?} preempt={}",
+                tcb.tid, proc.pid, tcb.get_state(), get_preempt_count()
+            );
+            // 栈回溯: 沿帧链读取返回地址
+            serial_println!("[PANIC] -- stack trace --");
+            unsafe { dump_stack_frames(stack_frame.stack_pointer.as_u64(), 6); }
+
             panic!(
                 "EXCEPTION: PAGE FAULT\nAccessed Address: {:?}\nError Code: {:?}\n{:#?}",
                 Cr2::read(),
