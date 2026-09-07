@@ -1,8 +1,10 @@
+use mos_abi::error::{KError, KResult};
 use log::info;
 use mos_arch::idt::{
     set_breakpoint_handler, set_double_fault_handler, set_general_handler,
     set_general_protection_fault_handler, set_page_fault_handler,
 };
+use mos_platform::smp::{IPI_RESCHEDULE, IPI_TLB_SHOOTDOWN, handle_ipi};
 use mos_arch::{dump_stack_frames, make_interrupt_handler};
 use mos_arch::structs::SyscallContext;
 use mos_driver::serial_println;
@@ -49,6 +51,10 @@ pub fn install_handlers() {
     set_general_handler(IDTIndexEnum::Mouse.as_u8(), mouse_interrupt_handler);
     set_general_handler(IDTIndexEnum::Timer.as_u8(), timer_handler);
     set_general_handler(IDTIndexEnum::Trap.as_u8(), trap_handler);
+
+    // SMP IPI handlers
+    set_general_handler(IPI_TLB_SHOOTDOWN, ipi_tlb_handler);
+    set_general_handler(IPI_RESCHEDULE, ipi_resched_handler);
 }
 
 /// Safety: because the user thread is panic, the context is on longer being used, it's safe to iretq
@@ -94,6 +100,16 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_ctx: InterruptStackFrame) 
     let scancode: u8 = unsafe { port.read() };
     mos_driver::keyboard::add_scancode(scancode);
     eoi(InterruptIndex::Keyboard.as_u8());
+}
+
+extern "x86-interrupt" fn ipi_tlb_handler(_: InterruptStackFrame) {
+    handle_ipi(IPI_TLB_SHOOTDOWN);
+    eoi(InterruptIndex::Timer.as_u8());
+}
+
+extern "x86-interrupt" fn ipi_resched_handler(_: InterruptStackFrame) {
+    handle_ipi(IPI_RESCHEDULE);
+    eoi(InterruptIndex::Timer.as_u8());
 }
 
 extern "x86-interrupt" fn mouse_interrupt_handler(_ctx: InterruptStackFrame) {
@@ -187,7 +203,7 @@ fn page_fault_helper(
     error_code: PageFaultErrorCode,
     addr: Result<VirtAddr, VirtAddrNotValid>,
     current_tcb: KRef<ThreadControlBlock>,
-) -> Result<(), &'static str> {
+) -> KResult<()> {
     if !error_code.contains(PageFaultErrorCode::PROTECTION_VIOLATION)
         && let Ok(addr) = addr
     {
@@ -205,7 +221,7 @@ fn page_fault_helper(
         return handler_cow_page_fault(addr, frame, flags, &mut mapper);
     }
 
-    Err("unknown page fault error")
+    Err(KError::NotMapped)
 }
 
 fn handler_cow_page_fault(
@@ -213,7 +229,7 @@ fn handler_cow_page_fault(
     frame: PhysFrame,
     flags: PageTableFlags,
     mapper: &mut impl Mapper<Size4KiB>,
-) -> Result<(), &'static str> {
+) -> KResult<()> {
     let count = PhysicalFrameManager.ref_get(frame);
     let page = Page::containing_address(addr);
     let new_flags = (flags - PageTableFlags::BIT_9) | PageTableFlags::WRITABLE;
@@ -222,7 +238,7 @@ fn handler_cow_page_fault(
         // alloc new frame, copy data, unmap the page and dec ref
         let new_frame = PhysicalFrameManager
             .allocate_frame()
-            .ok_or("couldn't allocate frame")?;
+            .ok_or(KError::FrameAllocFailed)?;
         phys_page_copy(page, new_frame);
         unsafe {
             mapper.unmap(page).unwrap().1.flush();
@@ -244,6 +260,6 @@ fn handler_cow_page_fault(
         }
         Ok(())
     } else {
-        Err("COW with 0 refcount")
+        Err(KError::InvalidArg)
     }
 }

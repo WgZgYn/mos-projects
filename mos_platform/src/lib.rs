@@ -6,6 +6,7 @@ mod acpi_handler;
 pub mod apic;
 pub mod keyboard;
 pub mod pic;
+pub mod smp;
 pub mod timer;
 
 use crate::acpi::{APIC, init_lapic};
@@ -278,7 +279,7 @@ pub fn eoi(irq: u8) {
 ///   bit  14      = Level (1 = Assert, 0 = Deassert)
 ///   bit  15      = Trigger Mode (1 = Level, 0 = Edge)
 ///   bits 56:63   = Destination APIC ID (xAPIC; x2APIC uses bits 32:63)
-unsafe fn write_raw_icr(xapic_base: u64, icr: u64, x2apic: bool) {
+pub(crate) unsafe fn write_raw_icr(xapic_base: u64, icr: u64, x2apic: bool) {
     if x2apic {
         unsafe {
             x86_64::registers::model_specific::Msr::new(0x830).write(icr);
@@ -293,7 +294,7 @@ unsafe fn write_raw_icr(xapic_base: u64, icr: u64, x2apic: bool) {
 }
 
 /// Check if x2APIC mode is currently enabled (IA32_APIC_BASE bit 10).
-fn is_x2apic_enabled() -> bool {
+pub(crate) fn is_x2apic_enabled() -> bool {
     use x86_64::registers::model_specific::Msr;
     unsafe { Msr::new(0x1B).read() & (1 << 10) != 0 }
 }

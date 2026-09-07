@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 x86_64 = "0.15.4"
 log = "0.4.29"
+mos_abi = { path = "../mos_abi" }
 mos_lib = { path = "../mos_lib" }
 mos_arch = { path = "../mos_arch" }
 mos_platform = { path = "../mos_platform" }
