@@ -16,5 +16,5 @@ pub fn raw_sys_close(context: &mut SyscallContext, args: [u64; 6]) {
 pub fn sys_close(fd: FileDesc) -> bool {
     info!("sys_close: {:?}", fd);
     let current_tcb = current_tcb();
-    current_tcb.process.files.lock().remove(fd)
+    current_tcb.process.files().lock().remove(fd)
 }

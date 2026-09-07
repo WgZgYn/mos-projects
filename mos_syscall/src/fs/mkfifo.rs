@@ -14,7 +14,7 @@ pub fn raw_sys_mkfifo(context: &mut SyscallContext, args: [u64; 6]) {
 
 pub fn sys_mkfifo(path: &str) -> VfsResult<()> {
     let current_tcb = current_tcb();
-    let cwd = current_tcb.process.work_dir.lock().clone();
+    let cwd = current_tcb.process.work_dir().lock().clone();
     mos_vfs::vfs_create(mos_vfs::vfs_root_dentry(), cwd, path, FileType::Fifo)?;
     Ok(())
 }

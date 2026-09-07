@@ -47,6 +47,6 @@ pub fn sys_pipe() -> VfsResult<[FileDesc; 2]> {
     Ok([fd0, fd1])
 }
 
-pub fn sys_pipe2(fd: &mut [i32; 2], flags: OpenFlags) -> VfsResult<()> {
+pub fn sys_pipe2(_fd: &mut [i32; 2], _flags: OpenFlags) -> VfsResult<()> {
     todo!()
 }

@@ -1,4 +1,5 @@
-use crate::preempt_session::PreemptSpinLock;
+use mos_abi::error::KResult;
+use mos_arch::sync::SpinIrqLock;
 use crate::thread::{Priority, ThreadControlBlock, Tid};
 use crate::wait_queue::WaitQueue;
 use alloc::boxed::Box;
@@ -7,7 +8,6 @@ use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize};
-use data_public::struct_field_public;
 use lazy_static::lazy_static;
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
@@ -33,7 +33,7 @@ lazy_static! {
 }
 
 // use slab as the allocator
-static PCB_SLAB: PreemptSpinLock<Slab<ProcessControlBlock>> = PreemptSpinLock::new(Slab::new());
+static PCB_SLAB: SpinIrqLock<Slab<ProcessControlBlock>> = SpinIrqLock::new(Slab::new());
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Pid(u64);
@@ -129,38 +129,44 @@ impl FileTable {
     }
 }
 
-struct_field_public! {
-    pub struct ProcessControlBlock {
-        /// unique process id
-        pid: Pid,
+pub struct ProcessControlBlock {
+    /// unique process id
+    pub pid: Pid,
 
-        /// determine the process running ring level
-        context: CpuContext,
+    /// determine the process running ring level
+    pub context: CpuContext,
 
-        /// the address space the process uses
-        mem: MemorySet,
+    /// the address space the process uses
+    pub mem: MemorySet,
 
-        /// manager threads
-        threads: Mutex<Vec<Tid>>,
+    /// manager threads
+    pub(crate) threads: Mutex<Vec<Tid>>,
 
-        refcount: AtomicUsize,
+    refcount: AtomicUsize,
 
-        /// this is childs share state
-        childs: Mutex<Vec<Arc<SharedState>>>,
+    /// child process exit state shared with parent
+    pub childs: Mutex<Vec<Arc<SharedState>>>,
 
-        /// this is self share state
-        shared: Arc<SharedState>,
+    /// this is self exit state shared with parent
+    pub shared: Arc<SharedState>,
 
-        files: Mutex<FileTable>,
+    /// open file table
+    pub files: Mutex<FileTable>,
 
-        work_dir: Mutex<Arc<Dentry>>,
-    }
+    /// current working directory
+    pub work_dir: Mutex<Arc<Dentry>>,
 }
 
 impl ProcessControlBlock {
+    pub fn files(&self) -> &Mutex<FileTable> { &self.files }
+    pub fn work_dir(&self) -> &Mutex<Arc<Dentry>> { &self.work_dir }
+    pub fn shared(&self) -> &Arc<SharedState> { &self.shared }
+    pub fn childs(&self) -> &Mutex<Vec<Arc<SharedState>>> { &self.childs }
+    pub fn threads(&self) -> &Mutex<Vec<Tid>> { &self.threads }
+
     /// all the new construction of PCB will insert into PCBTables
     /// will allocate frame for root page table
-    fn new_empty(user_space: bool, new_addr_space: bool) -> Result<KRef<Self>, &'static str> {
+    fn new_empty(user_space: bool, new_addr_space: bool) -> KResult<KRef<Self>> {
         let page_table = if new_addr_space {
             PageTableManager::alloc_page_table()?
         } else {
@@ -187,7 +193,7 @@ impl ProcessControlBlock {
         });
         Ok(unsafe { KRef::from_ptr(NonNull::from_ref(pcb)) })
     }
-    pub fn new_empty_user() -> Result<KRef<Self>, &'static str> {
+    pub fn new_empty_user() -> KResult<KRef<Self>> {
         Self::new_empty(true, true)
     }
     /// be careful, this will share the same CR3
@@ -196,7 +202,7 @@ impl ProcessControlBlock {
     }
 
     /// will return stack top VirtAddr
-    pub fn prepare_user_stack(&self) -> Result<Page, &'static str> {
+    pub fn prepare_user_stack(&self) -> KResult<Page> {
         let stack_high = Page::containing_address(VirtAddr::new(0x7FFF_0000_0000));
         let stack_low = stack_high - DEFAULT_USER_STACK_PAGES;
 
@@ -257,7 +263,7 @@ impl ProcessControlBlock {
         threads.swap_remove(index);
     }
 
-    pub fn fork(&self) -> Result<KRef<ProcessControlBlock>, &'static str> {
+    pub fn fork(&self) -> KResult<KRef<ProcessControlBlock>> {
         let is_user = self.mem.is_userspace();
         let new_process = ProcessControlBlock::new_empty(is_user, true)?;
 

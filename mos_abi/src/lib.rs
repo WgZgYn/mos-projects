@@ -3,6 +3,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+pub mod error;
 pub mod ffi;
 pub mod fs;
 pub mod io;

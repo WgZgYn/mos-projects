@@ -1,3 +1,4 @@
+use mos_abi::error::KResult;
 use crate::config::BUDDY_METADATA_HEAP_SIZE;
 use crate::heap::SpinIrqHeap;
 use crate::regions::UsableMemoryRegion;
@@ -106,7 +107,7 @@ unsafe impl Allocator for BuddyBoostAllocator {
 }
 
 #[allow(static_mut_refs)]
-fn init_buddy_boost_allocator() -> Result<BuddyBoostAllocator, &'static str> {
+fn init_buddy_boost_allocator() -> KResult<BuddyBoostAllocator> {
     let boost: BuddyBoostAllocator = BuddyBoostAllocator;
     static mut BUDDY_META: [u8; BUDDY_METADATA_HEAP_SIZE as usize] =
         [0; BUDDY_METADATA_HEAP_SIZE as usize];

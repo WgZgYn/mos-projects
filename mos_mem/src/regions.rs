@@ -1,3 +1,4 @@
+use mos_abi::error::{KError, KResult};
 use crate::config::{MEMORY_REGION_RECORD, PRESERVE_MEMORY_REGIONS};
 use crate::{KERNEL_ADDR, KERNEL_LEN};
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
@@ -176,14 +177,14 @@ impl UsableMemoryRegions {
         }
     }
 
-    fn check(&self) -> Result<(), &'static str> {
+    fn check(&self) -> KResult<()> {
         // check whether kernal space is in the usable memory
         let ks = *unsafe { KERNEL_ADDR.get() };
         let ke = ks + *unsafe { KERNEL_LEN.get() };
         let res = self.is_address_overlap(ks, ke);
         info!("is kernal overlap free space? {:?}", res);
         if res.is_some() {
-            Err("usable memory region overlap kernel image space")
+            Err(KError::Overflow)
         } else {
             Ok(())
         }

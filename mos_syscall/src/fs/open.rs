@@ -20,8 +20,8 @@ pub fn raw_sys_open(context: &mut SyscallContext, args: [u64; 6]) {
 
 pub fn sys_open(path: &str, flags: OpenFlags) -> VfsResult<FileDesc> {
     let current_tcb = current_tcb();
-    let work_dir = current_tcb.process.work_dir.lock().clone();
+    let work_dir = current_tcb.process.work_dir().lock().clone();
     let file = mos_fs_runtime::open_with_dentry(mos_vfs::vfs_root_dentry(), work_dir, path, flags)?;
-    let fd = current_tcb.process.files.lock().insert(file);
+    let fd = current_tcb.process.files().lock().insert(file);
     Ok(fd)
 }

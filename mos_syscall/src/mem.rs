@@ -1,3 +1,4 @@
+use mos_abi::error::{KError, KResult};
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
 use mos_mem::virt::{BackingStore, MapFile, MemoryFlags};
@@ -13,12 +14,12 @@ pub fn sys_mmap(
     flags: MemoryMapFlags,
     fd: i32,
     offset: u64,
-) -> Result<PageRange, &'static str> {
+) -> KResult<PageRange> {
     let mem_flags = MemoryFlags::new(prot, flags);
     let current_tcb = current_tcb();
     let backing = if !flags.contains(MemoryMapFlags::ANONYMOUS) {
         if fd < 0 {
-            return Err("need file descriptor");
+            return Err(KError::NoFile);
         }
         let file = current_tcb
             .process
@@ -26,18 +27,18 @@ pub fn sys_mmap(
             .lock()
             .get(FileDesc(fd as _))
             .cloned()
-            .ok_or("no such file")?;
+            .ok_or(KError::NoFile)?;
         let open_flags = file.flags();
 
         if prot.contains(MemoryProtFlags::READ) && !open_flags.contains(OpenFlags::READ) {
-            return Err("permission reading deny");
+            return Err(KError::NoPermission);
         }
 
         if prot.contains(MemoryProtFlags::WRITE)
             && flags.contains(MemoryMapFlags::SHARED)
             && !open_flags.contains(OpenFlags::WRITE)
         {
-            return Err("permission writing deny");
+            return Err(KError::NoPermission);
         }
 
         BackingStore::File(MapFile::new(file.inode().clone(), offset))
@@ -51,6 +52,6 @@ pub fn sys_mmap(
         .mmap(start, pages, mem_flags, backing)
 }
 
-pub fn sys_munmap(start: Page, pages: u64) -> Result<(), &'static str> {
+pub fn sys_munmap(start: Page, pages: u64) -> KResult<()> {
     current_tcb().process.mem.munmap(start, pages)
 }

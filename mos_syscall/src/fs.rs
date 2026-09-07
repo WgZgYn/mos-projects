@@ -21,7 +21,7 @@ pub use write::raw_sys_write;
 
 pub fn sys_getdents(fd: FileDesc, buf: &mut [UserDirEntry]) -> VfsResult<usize> {
     let current_tcb = current_tcb();
-    let file = current_tcb.process.files.lock().get(fd).cloned();
+    let file = current_tcb.process.files().lock().get(fd).cloned();
     if let Some(file) = file {
         let mut i = 0;
         while let Some(entry) = file.read_dir(i)?
@@ -42,7 +42,7 @@ pub fn sys_getdents(fd: FileDesc, buf: &mut [UserDirEntry]) -> VfsResult<usize> 
 
 pub fn sys_chdir(fd: FileDesc) -> VfsResult<()> {
     let current_tcb = current_tcb();
-    let file = current_tcb.process.files.lock().get(fd).cloned();
+    let file = current_tcb.process.files().lock().get(fd).cloned();
     if let Some(file) = file {
         let mut p = file.dentry().clone();
         let mut v = Vec::new();
@@ -58,7 +58,7 @@ pub fn sys_chdir(fd: FileDesc) -> VfsResult<()> {
 
         let inode = file.inode();
         if inode.file_type() == FileType::Directory {
-            *current_tcb.process.work_dir.lock() = file.dentry().clone();
+            *current_tcb.process.work_dir().lock() = file.dentry().clone();
             Ok(())
         } else {
             Err(VfsError::NotDir)

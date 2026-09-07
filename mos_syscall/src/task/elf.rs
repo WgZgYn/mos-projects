@@ -1,3 +1,4 @@
+use mos_abi::error::{KError, KResult};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -99,14 +100,14 @@ fn get_elf_page_range<'a>(phs: impl Iterator<Item = &'a ProgramHeader>) -> Optio
     })
 }
 
-fn parse_symbol(elf: &Elf) -> Result<Symbols, &'static str> {
+fn parse_symbol(elf: &Elf) -> KResult<Symbols> {
     let mut inner = Vec::new();
     let mut index: BTreeMap<String, usize> = BTreeMap::new();
     for (i, sym) in elf.dynsyms.iter().enumerate() {
         let name = elf
             .dynstrtab
             .get_at(sym.st_name)
-            .ok_or("should have name")?;
+            .ok_or(KError::InvalidArg)?;
         inner.push(Symbol {
             name: name.to_owned(),
             value: sym.st_value,
@@ -137,21 +138,21 @@ fn load_elf_with_lib_loader<'a>(
     elf_file: &File,
     is_fixed: bool,
     loader: &mut LibraryLoader,
-) -> Result<LoadedElf, &'static str> {
+) -> KResult<LoadedElf> {
     let elf_bs = read_to_end(elf_file).map_err(|e| e.as_str())?;
     let elf = Elf::parse(&elf_bs).map_err(|_| "ELF parse error")?;
 
-    let page_range = get_elf_page_range(elf.program_headers.iter()).ok_or("should have PT_LOAD")?;
+    let page_range = get_elf_page_range(elf.program_headers.iter()).ok_or(KError::InvalidArg)?;
     let pages = page_range.len();
 
     let page_bias = if is_fixed {
         if !mem.is_free_area(page_range.into()) {
-            return Err("no free area");
+            return Err(KError::NotMapped);
         }
         0
     } else {
         mem.find_free_area(pages)
-            .ok_or("no free area")?
+            .ok_or(KError::NotMapped)?
             .start
             .start_address()
             .as_u64()
@@ -224,7 +225,7 @@ fn load_elf_with_lib_loader<'a>(
         info!("[LINKER] LOAD static-linked ELF");
     } else {
         info!("[LINKER] LOAD dynamic-linked ELF");
-        let _ = &elf.dynamic.ok_or("no dynamic")?;
+        let _ = &elf.dynamic.ok_or(KError::InvalidArg)?;
         for lib in elf.libraries {
             info!("[LINKER] need lib: {}", lib);
             loader.load_with_mem(mem, lib)?;
@@ -240,7 +241,7 @@ pub fn load_elf<'a>(
     mem: &MemorySet,
     elf_file: &File,
     is_fixed: bool,
-) -> Result<(LoadedElf, LibraryLoader), &'static str> {
+) -> KResult<(LoadedElf, LibraryLoader)> {
     let mut loader = LibraryLoader {
         loaded: Default::default(),
     };
@@ -248,12 +249,12 @@ pub fn load_elf<'a>(
     Ok((elf, loader))
 }
 
-fn apply_reloc(elf: &LoadedElf, loader: &LibraryLoader) -> Result<(), &'static str> {
+fn apply_reloc(elf: &LoadedElf, loader: &LibraryLoader) -> KResult<()> {
     for reloc in elf.rela.iter().chain(elf.plt_rela.iter()) {
         let symbol = elf
             .symbols
             .lookup_symbol_by_index(reloc.r_sym)
-            .ok_or("symbol not found")?;
+            .ok_or(KError::InvalidArg)?;
         let name = &symbol.name;
         if !name.is_empty() {
             info!("[LINKER] try to fix {}", name);
@@ -271,18 +272,18 @@ fn apply_reloc(elf: &LoadedElf, loader: &LibraryLoader) -> Result<(), &'static s
                                 elf.base.start_address().as_u64()
                                     + reloc
                                         .r_addend
-                                        .ok_or("R_X86_64_RELATIVE should exist r_addend")?
+                                        .ok_or(KError::InvalidArg)?
                                         as u64,
                             );
                     }
                 }
                 reloc::R_X86_64_GLOB_DAT | reloc::R_X86_64_JUMP_SLOT => {
                     info!("R_X86_64_GLOB_DAT / R_X86_64_JUMP_SLOT");
-                    let lib = loader.get(lib).ok_or("lib not loaded")?;
+                    let lib = loader.get(lib).ok_or(KError::InvalidArg)?;
                     let symbol = lib
                         .symbols
                         .lookup_symbol_by_name(name)
-                        .ok_or("failed to lookup symbol")?;
+                        .ok_or(KError::InvalidArg)?;
                     let addr = lib.base.start_address() + symbol.value;
                     unsafe {
                         (elf.base.start_address() + reloc.r_offset)
@@ -303,9 +304,9 @@ pub struct LibraryLoader {
 }
 
 impl LibraryLoader {
-    fn load_with_mem(&mut self, mem: &MemorySet, name: &str) -> Result<(), &'static str> {
+    fn load_with_mem(&mut self, mem: &MemorySet, name: &str) -> KResult<()> {
         if self.loaded.contains_key(name) {
-            Err("already loaded")
+            Err(KError::AlreadyMapped)
         } else {
             let file = open_library(name).map_err(|e| e.as_str())?;
             let elf = load_elf_with_lib_loader(mem, &file, false, self)?;

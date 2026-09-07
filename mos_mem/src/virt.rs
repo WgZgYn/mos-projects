@@ -1,3 +1,4 @@
+use mos_abi::error::{KError, KResult};
 use crate::phys::PhysicalFrameManager;
 use crate::{PageTableManager, phys_to_virt, write_to_phys};
 use alloc::collections::BTreeMap;
@@ -164,9 +165,9 @@ impl MemoryAreas {
         };
     }
 
-    pub fn init_heap(&mut self, start: Page) -> Result<(), &'static str> {
+    pub fn init_heap(&mut self, start: Page) -> KResult<()> {
         if self.find_area(start).is_some() {
-            return Err("heap_start overlap");
+            return Err(KError::Overflow);
         }
         self.heap.start = start;
         self.heap.end = self.heap.start;
@@ -177,14 +178,14 @@ impl MemoryAreas {
         self.heap.end
     }
 
-    fn extend_heap(&mut self, new_brk: Page, old_end: Page) -> Result<(), &'static str> {
+    fn extend_heap(&mut self, new_brk: Page, old_end: Page) -> KResult<()> {
         let extend_range = PageRange {
             start: old_end,
             end: new_brk,
         }; // [old_end, new_brk)
 
         if self.check_overlap(&extend_range) {
-            return Err("extend heap overlap");
+            return Err(KError::Overflow);
         }
 
         let heap_key = self.heap.start;
@@ -209,22 +210,22 @@ impl MemoryAreas {
     }
 
     // pre-check new_brk is in [old_start, old_end)
-    fn shrink_heap(&mut self, new_brk: Page, _old_end: Page) -> Result<(), &'static str> {
+    fn shrink_heap(&mut self, new_brk: Page, _old_end: Page) -> KResult<()> {
         let heap_key = self.heap.start;
         if new_brk == self.heap.start {
             self.areas.remove(&heap_key); // 移除空Area
         } else if let Some(area) = self.areas.get_mut(&heap_key) {
             area.range.end = new_brk;
         } else {
-            return Err("heap area not found"); // 防御panic
+            return Err(KError::OutOfBounds); // 防御panic
         }
         self.heap.end = new_brk;
         Ok(())
     }
 
-    pub fn set_brk(&mut self, new_brk: Page) -> Result<(), &'static str> {
+    pub fn set_brk(&mut self, new_brk: Page) -> KResult<()> {
         if new_brk < self.heap.start {
-            return Err("brk shouldn't be smaller than heap_start");
+            return Err(KError::InvalidArg);
         }
 
         match new_brk.cmp(&self.heap.end) {
@@ -300,7 +301,7 @@ impl MemoryAreas {
         pages: u64,
         flags: MemoryFlags,
         backing: BackingStore,
-    ) -> Result<PageRange, &'static str> {
+    ) -> KResult<PageRange> {
         let range = start
             .and_then(|start| {
                 let range = PageRange {
@@ -322,19 +323,19 @@ impl MemoryAreas {
                     None
                 }
             })
-            .ok_or("no free area found")?;
+            .ok_or(KError::NotMapped)?;
 
         self.try_add_area(MemoryArea::new(range, flags, backing))?;
         Ok(range)
     }
 
-    fn munmap(&mut self, start: Page, pages: u64) -> Result<(), &'static str> {
-        let area = self.areas.get(&start).ok_or("no area found")?;
+    fn munmap(&mut self, start: Page, pages: u64) -> KResult<()> {
+        let area = self.areas.get(&start).ok_or(KError::NotMapped)?;
         if area.range.len() == pages {
             self.areas.remove(&start);
             Ok(())
         } else {
-            Err("size mismatch")
+            Err(KError::InvalidArg)
         }
     }
 
@@ -363,10 +364,10 @@ impl MemoryAreas {
         Ok(())
     }
 
-    pub fn try_add_area(&mut self, area: MemoryArea) -> Result<(), &'static str> {
+    pub fn try_add_area(&mut self, area: MemoryArea) -> KResult<()> {
         // check overlap
         if self.check_overlap(&area.range) {
-            return Err("overlapping area");
+            return Err(KError::AlreadyMapped);
         }
         self.areas.insert(area.range.start, area);
         Ok(())
@@ -406,9 +407,9 @@ impl MemorySet {
         memsz: u64,
         mut data: &[u8],
         prot_flags: MemoryProtFlags,
-    ) -> Result<(), &'static str> {
+    ) -> KResult<()> {
         if memsz < data.len() as _ {
-            return Err("memsz is not long enough to cover the data");
+            return Err(KError::InvalidArg);
         }
 
         // add virtual memory area
@@ -429,7 +430,7 @@ impl MemorySet {
             if let Err(TranslateError::PageNotMapped) = ret {
                 let frame = PhysicalFrameManager
                     .global_allocate_frame()
-                    .ok_or("failed to allocate frame")?;
+                    .ok_or(KError::FrameAllocFailed)?;
                 let flags = flags_prot_to_pte(prot_flags, self.is_user_space);
                 unsafe {
                     self.addr_space
@@ -452,7 +453,7 @@ impl MemorySet {
                 addr_space
                     .mapper
                     .translate_addr(vaddr)
-                    .ok_or("preallocation and mapping not covered")
+                    .ok_or(KError::NotMapped)
             })?;
 
             let writeable = (remains as u64).min(4096 - vaddr.as_u64() % 4096);
@@ -481,7 +482,7 @@ impl MemorySet {
         self.page_table_root == rhs.page_table_root
     }
 
-    pub fn share_with(&self, new: &Self) -> Result<(), &'static str> {
+    pub fn share_with(&self, new: &Self) -> KResult<()> {
         // clone the vma
         self.addr_space.access(|old_mm| {
             new.addr_space.access(|new_mm| {
@@ -539,20 +540,20 @@ impl MemorySet {
         Ok(())
     }
 
-    pub fn try_handle_frame_alloc(&self, addr: VirtAddr) -> Result<(), &'static str> {
+    pub fn try_handle_frame_alloc(&self, addr: VirtAddr) -> KResult<()> {
         let page = Page::containing_address(addr);
 
         let Some(area) = self
             .addr_space
             .access(|addr_space| addr_space.find_area(page).cloned())
         else {
-            return Err("address not found");
+            return Err(KError::NotMapped);
         };
 
         // allocate physical frame
         let frame = PhysicalFrameManager
             .global_allocate_frame()
-            .ok_or("failed to allocate frame")?;
+            .ok_or(KError::FrameAllocFailed)?;
 
         let mut defer = Defer::new(|| unsafe { PhysicalFrameManager.deallocate_frame(frame) });
 
@@ -609,12 +610,12 @@ impl MemorySet {
         pages: u64,
         flags: MemoryFlags,
         backing: BackingStore,
-    ) -> Result<PageRange, &'static str> {
+    ) -> KResult<PageRange> {
         self.addr_space
             .access(|mm| mm.mmap(start, pages, flags, backing))
     }
 
-    pub fn munmap(&self, start: Page, pages: u64) -> Result<(), &'static str> {
+    pub fn munmap(&self, start: Page, pages: u64) -> KResult<()> {
         self.addr_space.access(|mm| mm.munmap(start, pages))
     }
 

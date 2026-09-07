@@ -1,4 +1,5 @@
 #![allow(unused)]
+use mos_abi::error::{KError, KResult};
 
 use crate::task::load_elf_from_file;
 use alloc::borrow::ToOwned;
@@ -87,12 +88,36 @@ pub fn sys_fork(frame: &mut SyscallContext) {
     enqueue_task(child_tcb);
 }
 
+/// 从 syscall dispatcher 接收原始参数，解析后调用 sys_execve
+pub fn handle_execve(context: &mut SyscallContext, args: [u64; 6]) {
+    let exec_path = unsafe { CStr::from_ptr(args[0] as *const _) };
+    let exec_args = unsafe { NullEndPointerArray::from_ptr(args[1] as *const *const c_char) };
+    let exec_envp = unsafe { NullEndPointerArray::from_ptr(args[2] as *const *const c_char) };
+    info!("[syscall] sys_execve");
+    let Ok(path) = exec_path.to_str() else {
+        info!("path is not valid UTF-8");
+        context.scratch.rax = u64::MAX;
+        return;
+    };
+    let path = path.to_owned();
+    let argv: Vec<CString> = exec_args.to_vec_cstring();
+    let envp: Vec<CString> = exec_envp.to_vec_cstring();
+    match sys_execve(context, path, argv, envp) {
+        Ok(_) => context.scratch.rax = 0,
+        Err(e) => {
+            info!("sys_execve: {:?}", e);
+            context.scratch.rax = u64::MAX;
+            sys_exit(-1);
+        }
+    }
+}
+
 pub fn sys_execve(
     frame: &mut SyscallContext,
     path: String,
     argv: Vec<CString>,
     envp: Vec<CString>,
-) -> Result<(), &'static str> {
+) -> KResult<()> {
     info!("{:?}{:?}{:?}", path, argv, envp);
 
     let mut f = open(&path, OpenFlags::READ).map_err(|e| e.as_str())?;
@@ -245,7 +270,7 @@ pub fn sys_wait(pid: u64) -> i32 {
 
 pub fn sys_exit(exit_code: i32) -> ! {
     let current = current_tcb();
-    let shared = &current.process.shared;
+    let shared = &current.process.shared();
     shared.exited.store(true, Ordering::Release);
     shared.exit_code.store(exit_code, Ordering::Release);
     wake_blocked_task(shared.wait_queue.lock().wake_all());

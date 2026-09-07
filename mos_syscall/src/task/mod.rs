@@ -1,3 +1,4 @@
+use mos_abi::error::{KError, KResult};
 use goblin::elf::program_header::{PF_R, PF_W, PF_X};
 use mos_abi::memory::MemoryProtFlags;
 use mos_lib::sync::KRef;
@@ -12,9 +13,9 @@ mod elf;
 pub fn load_elf_from_file(
     pcb: &KRef<ProcessControlBlock>,
     file: &File,
-) -> Result<VirtAddr, &'static str> {
+) -> KResult<VirtAddr> {
     if !pcb.mem.is_userspace() {
-        return Err("not support load elf to kernel process");
+        return Err(KError::Unsupported);
     }
     let (elf, _libs) = load_elf(&pcb.mem, file, true)?;
     Ok(elf.entry())
@@ -23,7 +24,7 @@ pub fn load_elf_from_file(
 pub fn pure_load_elf(
     pcb: &KRef<ProcessControlBlock>,
     elf_bs: &[u8],
-) -> Result<VirtAddr, &'static str> {
+) -> KResult<VirtAddr> {
     pub fn flags_elf_to_prot(elf_flags: u32) -> MemoryProtFlags {
         let mut flags = MemoryProtFlags::empty();
         if elf_flags & PF_R != 0 {
@@ -39,7 +40,7 @@ pub fn pure_load_elf(
     }
 
     if !pcb.mem.is_userspace() {
-        return Err("load elf to kernel space");
+        return Err(KError::Unsupported);
     }
     let elf = goblin::elf::Elf::parse(elf_bs).map_err(|_| "ELF parse error")?;
     let entry = VirtAddr::new(elf.entry);
@@ -61,7 +62,7 @@ pub fn spawn_thread(
     pcb: KRef<ProcessControlBlock>,
     elf_bs: &[u8],
     priority: Option<Priority>,
-) -> Result<KRef<ThreadControlBlock>, &'static str> {
+) -> KResult<KRef<ThreadControlBlock>> {
     let entry = pure_load_elf(&pcb, elf_bs)?;
 
     // ensure the stack align requirement `rsp % 16 == 8`

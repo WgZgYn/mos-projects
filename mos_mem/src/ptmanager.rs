@@ -1,3 +1,4 @@
+use mos_abi::error::{KError, KResult};
 use crate::phys::PhysicalFrameManager;
 use crate::{PHYSICAL_MEMORY_OFFSET, zero_frame};
 use lazy_static::lazy_static;
@@ -70,10 +71,10 @@ impl PageTableManager {
         }
     }
 
-    pub fn alloc_page_table() -> Result<(PhysFrame, OffsetPageTable<'static>), &'static str> {
+    pub fn alloc_page_table() -> KResult<(PhysFrame, OffsetPageTable<'static>)> {
         let frame = PhysicalFrameManager
             .global_allocate_frame()
-            .ok_or("alloc frame failed")?;
+            .ok_or(KError::FrameAllocFailed)?;
 
         unsafe {
             zero_frame(frame);
