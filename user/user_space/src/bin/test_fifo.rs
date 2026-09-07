@@ -2,7 +2,7 @@
 #![no_main]
 
 use user_lib::fs::{OpenFlags, VfsError};
-use user_lib::{close, exit, fork, mkfifo, open, println, read, write};
+use user_lib::{exit, fork, mkfifo, open, println, read, write};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
@@ -43,8 +43,5 @@ fn main() -> i32 {
         write(fifo, b"message from fifo writer\n").expect("write to pipe");
     }
 
-    let fifo = open(c"/mem/display.fifo", OpenFlags::WRITE).expect("should open display fifo");
-    write(fifo, b"message to display\n").expect("write to pipe");
-    close(fifo);
     0
 }

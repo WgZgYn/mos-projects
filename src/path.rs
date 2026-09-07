@@ -1,6 +1,6 @@
 use crate::command::BootMode;
 
-pub const QEMU_X86_64_PATH: &str = "qemu-system-x86_64";
+pub const QEMU_X86_64_PATH: &str = r"C:\Program Files\qemu\qemu-system-x86_64.exe";
 pub const KERNEL_NAME: &str = "mos";
 pub const RAMFS_ROOT_DIR_PATH: &str = r"build/ramfsroot";
 pub const RAMFS_FILE_OUT_PATH: &str = r"build/ramfsout/ramfs.bin";
