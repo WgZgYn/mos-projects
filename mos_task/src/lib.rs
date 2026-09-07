@@ -4,8 +4,6 @@ extern crate alloc;
 use crate::thread::ThreadControlBlock;
 use mos_lib::sync::KRef;
 
-mod block_mutex;
-pub mod preempt_session;
 pub mod process;
 pub mod scheduler;
 pub mod thread;

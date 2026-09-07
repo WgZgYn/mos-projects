@@ -19,7 +19,6 @@ use log::info;
 use mos_arch::asm::__switch_context;
 use mos_arch::percpu::{current_raw, current_raw_mut, try_current_raw};
 use mos_arch::sync::{SpinIrqLock, SpinIrqLockGuard};
-use mos_arch::with_disabled_interrupts;
 use mos_lib::sync::{KRef, KWake};
 use x86_64::structures::idt::InterruptStackFrame;
 

@@ -1,13 +1,13 @@
 use core::ops::DerefMut;
 use lazy_static::lazy_static;
-use mos_task::preempt_session::PreemptSpinLock;
+use mos_arch::sync::SpinIrqLock;
 use uart_16550::backend::PioBackend;
 use uart_16550::{Config, Uart16550Tty};
 
 lazy_static! {
-    pub static ref SERIAL1: PreemptSpinLock<Option<Uart16550Tty<PioBackend>>> = {
+    pub static ref SERIAL1: SpinIrqLock<Option<Uart16550Tty<PioBackend>>> = {
         let serial_port = unsafe { Uart16550Tty::new_port(0x3F8, Config::DEFAULT) }.ok();
-        PreemptSpinLock::new(serial_port)
+        SpinIrqLock::new(serial_port)
     };
 }
 

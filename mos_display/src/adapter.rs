@@ -3,7 +3,7 @@ use crate::traits::PixelSink;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use core::ops::DerefMut;
 use mos_lib::KernelBootGlobal;
-use mos_task::preempt_session::PreemptSpinLock;
+use mos_arch::sync::SpinIrqLock;
 
 type BlitRowFn = fn(dst: &mut [u8], src: &[RGBA]);
 
@@ -113,8 +113,8 @@ impl PixelSink for FrameBufferAdapter {
     }
 }
 
-static ADAPTER: PreemptSpinLock<KernelBootGlobal<FrameBufferAdapter>> =
-    PreemptSpinLock::new(KernelBootGlobal::uninit());
+static ADAPTER: SpinIrqLock<KernelBootGlobal<FrameBufferAdapter>> =
+    SpinIrqLock::new(KernelBootGlobal::uninit());
 
 pub fn init_framebuffer_adapter(framebuffer: &'static mut FrameBuffer) {
     unsafe {

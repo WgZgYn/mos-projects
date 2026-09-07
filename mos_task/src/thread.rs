@@ -1,4 +1,4 @@
-use crate::preempt_session::PreemptSpinLock;
+use mos_arch::sync::SpinIrqLock;
 use crate::process::{KERNEL, KernelStack, ProcessControlBlock};
 use crate::scheduler::{ParkDecision, SCHEDULER, park_with_scheduler};
 use core::cell::UnsafeCell;
@@ -18,7 +18,7 @@ use x86_64::VirtAddr;
 const REAPER_PRIORITY: u8 = 5;
 pub const DEFAULT_THREAD_PRIORITY: u8 = 2;
 
-static TCB_SLAB: PreemptSpinLock<Slab<ThreadControlBlock>> = PreemptSpinLock::new(Slab::new());
+static TCB_SLAB: SpinIrqLock<Slab<ThreadControlBlock>> = SpinIrqLock::new(Slab::new());
 
 pub fn sti_hlt_loop() -> ! {
     info!("STI HLT loop");
@@ -182,6 +182,8 @@ impl ThreadControlBlock {
             ..Default::default()
         };
 
+        // SAFETY: kstack.top() returns a valid pointer within the kernel stack allocation.
+        // trap and krip are within bounds (top - sizeof(InterruptStack) - 8 > stack bottom).
         unsafe {
             let ktop = kstack.top().as_mut_ptr::<u64>();
             let trap = ktop.cast::<InterruptStack>().sub(1);

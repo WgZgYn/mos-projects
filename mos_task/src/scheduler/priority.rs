@@ -90,7 +90,7 @@ struct StaticMultiLevelPriorityQueue<const N: usize> {
 }
 
 impl<const N: usize> ReadyQueue for StaticMultiLevelPriorityQueue<N> {
-    fn push(&mut self, t: KRef<ThreadControlBlock>) {
+    fn push(&mut self, _t: KRef<ThreadControlBlock>) {
         todo!()
     }
 
@@ -98,7 +98,7 @@ impl<const N: usize> ReadyQueue for StaticMultiLevelPriorityQueue<N> {
         todo!()
     }
 
-    fn push_pop(&mut self, t: KRef<ThreadControlBlock>) -> KRef<ThreadControlBlock> {
+    fn push_pop(&mut self, _t: KRef<ThreadControlBlock>) -> KRef<ThreadControlBlock> {
         todo!()
     }
 

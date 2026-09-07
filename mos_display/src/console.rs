@@ -5,7 +5,7 @@ use core::fmt;
 use core::fmt::Write;
 use core::ops::DerefMut;
 use log::{Log, Metadata, Record};
-use mos_task::preempt_session::PreemptSpinLock;
+use mos_arch::sync::SpinIrqLock;
 use noto_sans_mono_bitmap::{get_raster, FontWeight, RasterHeight, RasterizedChar};
 
 /// Additional vertical space between lines
@@ -152,11 +152,11 @@ impl Write for Console {
     }
 }
 
-pub struct ConsoleLogger(PreemptSpinLock<Console>);
+pub struct ConsoleLogger(SpinIrqLock<Console>);
 
 impl ConsoleLogger {
     pub const fn new(console: Console) -> Self {
-        Self(PreemptSpinLock::new(console))
+        Self(SpinIrqLock::new(console))
     }
 }
 
