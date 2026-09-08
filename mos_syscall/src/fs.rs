@@ -1,4 +1,6 @@
 mod close;
+mod dir;
+mod fcntl;
 mod iovec;
 mod lseek;
 mod mkfifo;
@@ -17,6 +19,12 @@ use mos_task::current_tcb;
 use vfs_common::{FileType, VfsError, VfsResult};
 
 pub use close::raw_sys_close;
+pub use dir::{
+    raw_sys_access, raw_sys_chmod, raw_sys_faccessat, raw_sys_fchmod, raw_sys_ftruncate,
+    raw_sys_link, raw_sys_mkdir, raw_sys_readlink, raw_sys_rename, raw_sys_rmdir, raw_sys_symlink,
+    raw_sys_truncate, raw_sys_umask, raw_sys_unlink,
+};
+pub use fcntl::{raw_sys_dup3, raw_sys_fcntl};
 pub use iovec::{raw_sys_readv, raw_sys_writev};
 pub use lseek::raw_sys_lseek;
 pub use mkfifo::raw_sys_mkfifo;
@@ -38,7 +46,9 @@ pub fn sys_getdents(fd: FileDesc, buf: &mut [u8]) -> VfsResult<usize> {
     let file = file.unwrap();
 
     let mut pos = 0usize;
-    let mut idx = 0usize;
+    // the directory offset is per-open-file: the caller re-issues
+    // getdents64 until 0 is returned (busybox relies on this)
+    let mut idx = file.get_offset() as usize;
     while let Some(entry) = file.read_dir(idx)? {
         let name = entry.name();
         let name_len = name.len();
@@ -61,6 +71,7 @@ pub fn sys_getdents(fd: FileDesc, buf: &mut [u8]) -> VfsResult<usize> {
         pos += reclen;
         idx += 1;
     }
+    file.set_offset(idx as u64);
     Ok(pos)
 }
 

@@ -59,6 +59,7 @@ string_enum! {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct DirItem {
     name: [u8; 32],
     file_type: FileType,

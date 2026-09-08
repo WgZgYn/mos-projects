@@ -3,8 +3,11 @@
 extern crate alloc;
 
 use crate::fs::{
-    raw_sys_close, raw_sys_fstat, raw_sys_lseek, raw_sys_mkfifo, raw_sys_open, raw_sys_pipe,
-    raw_sys_read, raw_sys_readv, raw_sys_stat, raw_sys_write, raw_sys_writev, sys_chdir,
+    raw_sys_access, raw_sys_chmod, raw_sys_close, raw_sys_dup3, raw_sys_faccessat,
+    raw_sys_fchmod, raw_sys_fcntl, raw_sys_fstat, raw_sys_ftruncate, raw_sys_link, raw_sys_lseek,
+    raw_sys_mkdir, raw_sys_mkfifo, raw_sys_open, raw_sys_pipe, raw_sys_read, raw_sys_readlink,
+    raw_sys_readv, raw_sys_rename, raw_sys_rmdir, raw_sys_stat, raw_sys_symlink,
+    raw_sys_truncate, raw_sys_umask, raw_sys_unlink, raw_sys_write, raw_sys_writev, sys_chdir,
     sys_getdents,
 };
 use crate::mem::{sys_madvise, sys_mmap, sys_mprotect, sys_munmap};
@@ -126,7 +129,7 @@ pub fn syscall(context: &mut SyscallContext) {
                 None
             };
             let length = args[1];
-            let pages = align_up(length, 4096);
+            let pages = align_up(length, 4096) / 4096;
             let prot = MemoryProtFlags::from_bits_truncate(args[2] as u32);
             let mapf = MemoryMapFlags::from_bits_truncate(args[3] as _);
             let fd = args[4];
@@ -146,7 +149,7 @@ pub fn syscall(context: &mut SyscallContext) {
         Syscall::Munmap => {
             let start = Page::containing_address(VirtAddr::new(args[0]));
             let length = args[1];
-            let pages = align_up(length, 4096);
+            let pages = align_up(length, 4096) / 4096;
             let ret = sys_munmap(start, pages as _);
             match ret {
                 Ok(_) => context.scratch.rax = 0,
@@ -193,6 +196,25 @@ pub fn syscall(context: &mut SyscallContext) {
                 }
             }
         }
+        Syscall::Mkdir => raw_sys_mkdir(context, args),
+        Syscall::Unlink => raw_sys_unlink(context, args),
+        Syscall::Rmdir => raw_sys_rmdir(context, args),
+        Syscall::Rename => raw_sys_rename(context, args),
+        Syscall::Link => raw_sys_link(context, args),
+        Syscall::Symlink => raw_sys_symlink(context, args),
+        Syscall::Readlink => raw_sys_readlink(context, args),
+        Syscall::Access | Syscall::Faccessat => {
+            if syscall_id == Syscall::Faccessat as u64 {
+                raw_sys_faccessat(context, args)
+            } else {
+                raw_sys_access(context, args)
+            }
+        }
+        Syscall::Umask => raw_sys_umask(context, args),
+        Syscall::Truncate => raw_sys_truncate(context, args),
+        Syscall::Ftruncate => raw_sys_ftruncate(context, args),
+        Syscall::Chmod => raw_sys_chmod(context, args),
+        Syscall::Fchmod => raw_sys_fchmod(context, args),
         Syscall::Dup => {
             let fd = FileDesc(args[0] as usize);
             let tcb = current_tcb();
@@ -213,6 +235,8 @@ pub fn syscall(context: &mut SyscallContext) {
                 ret_err(context, KError::BadFd);
             }
         }
+        Syscall::Fcntl => raw_sys_fcntl(context, args),
+        Syscall::Dup3 => raw_sys_dup3(context, args),
 
         Syscall::CreateSemaphore => {
             let init = args[0];

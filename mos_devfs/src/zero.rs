@@ -21,6 +21,9 @@ impl FileOps for ZeroInode {
 }
 
 impl Inode for ZeroInode {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn file_type(&self) -> FileType {
         FileType::Regular
     }

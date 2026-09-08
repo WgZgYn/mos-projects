@@ -25,6 +25,8 @@ pub trait Inode: Send + Sync {
     fn parent(&self) -> VfsResult<Option<Arc<dyn Inode>>> {
         Err(VfsError::NotSupported)
     }
+    /// Downcast support for filesystem-specific operations (e.g. link(2)).
+    fn as_any(&self) -> &dyn core::any::Any;
 
     // fn to_stream_ops(self: Arc<Self>) -> VfsResult<Arc<dyn StreamOps>> { Err(VfsError::NotFile) }
     // fn to_file_ops(self: Arc<Self>) -> VfsResult<Arc<dyn FileOps>> { Err(VfsError::NotStream) }
@@ -43,6 +45,10 @@ pub trait Inode: Send + Sync {
     fn on_close(&self, _flags: OpenFlags) -> VfsResult<()> {
         Ok(())
     }
+    /// truncate(2)/ftruncate(2): resize the file. Default: unsupported.
+    fn truncate(&self, _len: u64) -> VfsResult<()> {
+        Err(VfsError::NotSupported)
+    }
 }
 
 pub trait FileOps: Send + Sync {
@@ -54,6 +60,21 @@ pub trait DirOps: Send + Sync {
     fn lookup(&self, name: &str) -> VfsResult<Arc<dyn Inode>>;
     fn create(&self, name: &str, file_type: FileType) -> VfsResult<Arc<dyn Inode>>;
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>>;
+
+    /// unlink(2)/rmdir(2): delete the child entry (and the inode) by name.
+    /// Directory-ness / non-empty checks live in the syscall layer.
+    fn remove(&self, _name: &str) -> VfsResult<()> {
+        Err(VfsError::NotSupported)
+    }
+    /// rename(2) within this directory.
+    fn rename(&self, _old_name: &str, _new_name: &str) -> VfsResult<()> {
+        Err(VfsError::NotSupported)
+    }
+    /// link(2): insert a new entry in this directory pointing at an
+    /// existing inode (no nlink accounting yet).
+    fn link(&self, _name: &str, _node: &Arc<dyn Inode>) -> VfsResult<()> {
+        Err(VfsError::NotSupported)
+    }
 }
 
 #[derive(Clone)]

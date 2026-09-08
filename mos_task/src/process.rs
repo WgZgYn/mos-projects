@@ -7,7 +7,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
-use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use lazy_static::lazy_static;
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
@@ -88,44 +88,78 @@ impl SharedState {
 
 #[derive(Clone)]
 pub struct FileTable {
-    slab: slab::Slab<Arc<File>>,
+    table: Vec<Option<Arc<File>>>,
 }
 
 impl FileTable {
     pub const fn empty() -> Self {
-        Self {
-            slab: slab::Slab::new(),
-        }
+        Self { table: Vec::new() }
     }
     pub fn insert(&mut self, file: File) -> FileDesc {
-        FileDesc(self.slab.insert(Arc::new(file)))
+        self.insert_arc(Arc::new(file))
     }
     pub fn insert_arc(&mut self, file: Arc<File>) -> FileDesc {
-        FileDesc(self.slab.insert(file))
+        // reuse the first hole, else append
+        if let Some((i, slot)) = self.table.iter_mut().enumerate().find(|(_, s)| s.is_none()) {
+            *slot = Some(file);
+            FileDesc(i)
+        } else {
+            self.table.push(Some(file));
+            FileDesc(self.table.len() - 1)
+        }
+    }
+    /// insert at a specific index (dup2/dup3/F_DUPFD), replacing any file
+    /// that was there (its Drop runs on_close)
+    pub fn insert_at(&mut self, index: usize, file: Arc<File>) -> FileDesc {
+        if index >= self.table.len() {
+            self.table.resize_with(index + 1, || None);
+        }
+        self.table[index] = Some(file);
+        FileDesc(index)
     }
     pub fn remove(&mut self, file: FileDesc) -> bool {
-        self.slab.try_remove(file.0).is_some()
-    }
-    pub fn get(&self, file: FileDesc) -> Option<&Arc<File>> {
-        self.slab.get(file.0)
-    }
-    pub fn dup(&mut self, file: FileDesc) -> Option<FileDesc> {
-        self.get(file).cloned().map(|f| self.insert_arc(f))
-    }
-    /// This only allow dup to already exist fd
-    pub fn dup_to(&mut self, src: FileDesc, dst: FileDesc) -> bool {
-        if let Some((src, dst)) = self.slab.get2_mut(src.0, dst.0) {
-            *dst = src.clone();
+        if file.0 < self.table.len() && self.table[file.0].is_some() {
+            self.table[file.0] = None;
             true
         } else {
             false
         }
     }
+    pub fn get(&self, file: FileDesc) -> Option<&Arc<File>> {
+        self.table.get(file.0).and_then(|s| s.as_ref())
+    }
+    pub fn dup(&mut self, file: FileDesc) -> Option<FileDesc> {
+        self.get(file).cloned().map(|f| self.insert_arc(f))
+    }
+    /// dup2/dup3 semantics: close dst if it was open, then point it at src
+    pub fn dup_to(&mut self, src: FileDesc, dst: FileDesc) -> bool {
+        match self.get(src).cloned() {
+            Some(f) => {
+                self.insert_at(dst.0, f);
+                true
+            }
+            None => false,
+        }
+    }
+    /// F_DUPFD: duplicate to the lowest free fd >= min
+    pub fn dup_from(&mut self, src: FileDesc, min: usize) -> Option<FileDesc> {
+        let file = self.get(src)?.clone();
+        let mut index = min;
+        loop {
+            if index >= self.table.len() {
+                return Some(self.insert_at(index, file));
+            }
+            if self.table[index].is_none() {
+                return Some(self.insert_at(index, file));
+            }
+            index += 1;
+        }
+    }
     pub fn len(&self) -> usize {
-        self.slab.len()
+        self.table.iter().filter(|s| s.is_some()).count()
     }
     pub fn is_empty(&self) -> bool {
-        self.slab.is_empty()
+        self.table.iter().all(|s| s.is_none())
     }
 }
 
@@ -158,6 +192,9 @@ pub struct ProcessControlBlock {
 
     /// current working directory
     pub work_dir: Mutex<Arc<Dentry>>,
+
+    /// umask(2) value for file mode calculation
+    pub umask: AtomicU32,
 }
 
 impl ProcessControlBlock {
@@ -194,6 +231,7 @@ impl ProcessControlBlock {
             shared: SharedState::new_shared(Pid(key as _)),
             files: Mutex::new(FileTable::empty()),
             work_dir: Mutex::new(vfs_root_dentry()),
+            umask: AtomicU32::new(0o022),
         });
         Ok(unsafe { KRef::from_ptr(NonNull::from_ref(pcb)) })
     }
@@ -277,6 +315,9 @@ impl ProcessControlBlock {
         // copy the open files and cwd
         *new_process.files.lock() = self.files.lock().clone();
         *new_process.work_dir.lock() = self.work_dir.lock().clone();
+        new_process
+            .umask
+            .store(self.umask.load(Ordering::Acquire), Ordering::Release);
 
         // register the shared state
         let shared_state = new_process.shared.clone();

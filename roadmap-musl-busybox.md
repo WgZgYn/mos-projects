@@ -37,12 +37,21 @@
 
 ## 阶段 2:文件系统补全 —— busybox ls/cat/cp/mv 能跑
 
-- [ ] `mkdir`(83,枚举已有,补分发)、`unlink`(87)、`rmdir`(84)、`rename`(82)、`link`(86)
-- [ ] `symlink`(88)、`readlink`(89)(或 ramfs 硬链接)——busybox 靠 argv[0]/路径名判断 applet
-- [ ] `access`(21)/`faccessat`(269)、`chmod/fchmod`(90/91,stub 返回 0)、`umask`(95)、`truncate/ftruncate`(76/77)
-- [x] `readv/writev`(19/20,musl stdio 依赖,已实现)、`fcntl`(72:F_DUPFD/F_GETFD/F_SETFD/F_GETFL)、`dup3`(292)
-- [ ] 修复 fork 跨 CPU TLB 刷新(smp fix plan.md 中 P0-2)
-- [ ] 验证:静态 busybox(defconfig)在 QEMU 中运行 ls/cat/cp/mv/echo
+- [x] `mkdir`(83)、`unlink`(87)、`rmdir`(84)、`rename`(82)、`link`(86)
+- [x] `symlink`(88)、`readlink`(89)
+- [x] `access`(21)/`faccessat`(269)、`chmod/fchmod`(90/91)、`umask`(95)、`truncate/ftruncate`(76/77)
+- [x] `readv/writev`(19/20)、`fcntl`(72:F_DUPFD/F_GETFD/F_SETFD/F_GETFL/F_SETFL)、`dup3`(292)
+- [x] 修复 fork 跨 CPU TLB 刷新(smp fix plan.md 中 P0-2)
+- [x] 验证:静态 busybox(musl-gcc 1.36.1)在 QEMU 中运行 echo/ls/cat
+
+> 阶段 2 验证中额外修复的内核 bug:
+> 1. mmap 分发把 `align_up(len,4096)` 字节值当页数用 → 4KB mmap 占 16MB(已修 mmap/munmap 两处)
+> 2. mmap MAP_FIXED 与 brk 区域重叠直接 ENOMEM → musl malloc 堆预留失败报 out of memory;已按 Linux 语义实现覆盖已有映射(remove_range + PTE 卸载)
+> 3. brk 成功返回 0 而非新 brk → musl malloc 判失败;已改为 Linux 约定
+> 4. getdents64 不追踪目录偏移 → busybox 读目录死循环;已用 File offset 追踪
+> 5. ramfs 硬链接条目沿用 inode 名字(应为新名字)
+> 6. 内核日志:ConsoleLogger 注册后 info! 只进屏幕不进串口(mos/src/main.rs 已注释,调试期用默认 BOTH_LOGGER)
+> 7. init 进程只创建 fd 0/1,没有 fd 2 → busybox 的 stderr 写入 EBADF 静默丢失(待补)
 
 ## 阶段 3:信号机制 + wait4 语义 —— busybox sh 可交互
 

@@ -119,6 +119,58 @@ impl Dentry {
         inner.children.insert(name.to_owned(), dentry.clone());
         Ok(dentry)
     }
+    /// unlink/rmdir: remove the child entry and evict it from the dentry cache.
+    pub fn remove(self: &Arc<Self>, name: &str) -> VfsResult<()> {
+        let inner = self.inner.read();
+        let Some(inode) = inner.inode.clone() else {
+            return Err(VfsError::NotFound);
+        };
+        let dir_inode = inode.inode();
+        let dir_inode = dir_inode.as_dir_ops()?;
+        drop(inner);
+        dir_inode.remove(name)?;
+        self.inner.write().children.remove(name);
+        Ok(())
+    }
+
+    /// rename within this directory.
+    pub fn rename(self: &Arc<Self>, old_name: &str, new_name: &str) -> VfsResult<()> {
+        let inner = self.inner.read();
+        let Some(inode) = inner.inode.clone() else {
+            return Err(VfsError::NotFound);
+        };
+        let dir_inode = inode.inode();
+        let dir_inode = dir_inode.as_dir_ops()?;
+        drop(inner);
+        dir_inode.rename(old_name, new_name)?;
+        let mut inner = self.inner.write();
+        if let Some(child) = inner.children.remove(old_name) {
+            child.inner.write().name = new_name.to_owned();
+            inner.children.insert(new_name.to_owned(), child);
+        }
+        Ok(())
+    }
+
+    /// hard link: add `name` pointing at `node` in this directory.
+    pub fn link(self: &Arc<Self>, name: &str, node: &Arc<VfsInode>) -> VfsResult<()> {
+        let inner = self.inner.read();
+        let Some(inode) = inner.inode.clone() else {
+            return Err(VfsError::NotFound);
+        };
+        let dir_inode = inode.inode();
+        let dir_inode = dir_inode.as_dir_ops()?;
+        drop(inner);
+        dir_inode.link(name, &node.inode())?;
+        let mut inner = self.inner.write();
+        let child = Dentry::new(DentryInner::new(
+            name.to_owned(),
+            Arc::downgrade(self),
+            Some(node.clone()),
+        ));
+        inner.children.insert(name.to_owned(), Arc::new(child));
+        Ok(())
+    }
+
     pub fn follow_mount(self: Arc<Self>) -> Arc<Self> {
         self.inner
             .read()

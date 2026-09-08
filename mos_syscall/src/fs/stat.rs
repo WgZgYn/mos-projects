@@ -1,8 +1,8 @@
 use alloc::sync::Arc;
 use mos_abi::ffi::c_str_to_str;
 use mos_abi::fs::{
-    DIR_PERM, DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_REG, FILE_PERM, FileDesc, S_IFBLK, S_IFCHR,
-    S_IFDIR, S_IFIFO, S_IFREG, Stat,
+    DIR_PERM, DT_BLK, DT_CHR, DT_DIR, DT_FIFO, DT_LNK, DT_REG, FILE_PERM, FileDesc, S_IFBLK,
+    S_IFCHR, S_IFDIR, S_IFIFO, S_IFLNK, S_IFREG, Stat,
 };
 use mos_arch::structs::SyscallContext;
 use mos_task::current_tcb;
@@ -15,6 +15,7 @@ pub fn file_type_to_dt(ft: FileType) -> u8 {
         FileType::BlockDevice => DT_BLK,
         FileType::CharDevice => DT_CHR,
         FileType::Fifo => DT_FIFO,
+        FileType::SymLink => DT_LNK,
     }
 }
 
@@ -28,6 +29,7 @@ pub fn stat_from_file(file: &mos_vfs::file::File) -> VfsResult<Stat> {
         FileType::CharDevice => (S_IFCHR, FILE_PERM),
         FileType::BlockDevice => (S_IFBLK, FILE_PERM),
         FileType::Fifo => (S_IFIFO, FILE_PERM),
+        FileType::SymLink => (S_IFLNK, FILE_PERM),
     };
     let size = file.dentry().file_size()? as i64;
     // no persistent inode numbers yet: the address of the inode object is

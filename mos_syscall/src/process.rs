@@ -56,6 +56,9 @@ pub fn sys_fork(frame: &mut SyscallContext) {
         crate::ret_err(frame, KError::OutOfMem);
         return;
     };
+    // fork cleared WRITABLE on shared CoW pages: other CPUs may hold stale
+    // writable TLB entries for this process (smp fix plan P0-2). Flush them.
+    mos_platform::smp::tlb_shootdown();
 
     let mut scratch = frame.scratch.clone();
     scratch.rax = 0;
@@ -396,8 +399,9 @@ pub fn sys_brk(brk: u64) -> u64 {
     let current = current_tcb();
     current.process.mem.addr_space.access(|mm| {
         if brk != 0 {
+            // Linux returns the new brk on success, -ENOMEM on failure
             mm.set_brk(Page::containing_address(VirtAddr::new(brk)))
-                .map(|_| 0)
+                .map(|_| brk)
                 .unwrap_or((-KError::OutOfMem.to_errno()) as u64)
         } else {
             mm.current_brk().start_address().as_u64() as _

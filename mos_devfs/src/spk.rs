@@ -12,6 +12,9 @@ lazy_static! {
 }
 
 impl Inode for PcSpeaker {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn file_type(&self) -> FileType {
         FileType::CharDevice
     }

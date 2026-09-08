@@ -75,8 +75,11 @@ $qemuArgs = '-drive "format=raw,file=build/image/mos-uefi.img" ' +
     '-device virtio-gpu-pci ' +
     '-audiodev "dsound,id=snd0" -machine "pcspk-audiodev=snd0" ' +
     '-device "loader,file=build/ramfsout/ramfs.bin,addr=0x50000000"'
-Start-Process -FilePath $Qemu -ArgumentList $qemuArgs -WorkingDirectory $Repo
-Write-Host "[qemu-run] QEMU launched (log: $Log)"
+$qemuErr = Join-Path $Repo "qemu_stderr.log"
+Remove-Item $qemuErr -Force -ErrorAction SilentlyContinue
+Start-Process -FilePath $Qemu -ArgumentList $qemuArgs -WorkingDirectory $Repo `
+    -RedirectStandardError $qemuErr
+Write-Host "[qemu-run] QEMU launched (log: $Log, stderr: $qemuErr)"
 
 # 4. wait for the marker in the serial log
 $deadline = (Get-Date).AddSeconds($TimeoutSec)

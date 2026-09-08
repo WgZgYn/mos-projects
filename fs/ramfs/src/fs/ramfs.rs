@@ -3,6 +3,7 @@ use crate::frame::Frame;
 use crate::fs::{DirItem, Error, FileType, RamFs, has_same_name};
 use crate::index::{FrameAccess, FrameIndex, FramePtr, InodeIndex, RAMFS_ROOT_INODE_INDEX};
 use crate::inode::IndexNode;
+use crate::utils::set_filename;
 use core::ops::{Index, IndexMut};
 use log::{info, trace};
 use spin::Mutex;
@@ -95,15 +96,47 @@ impl RamFs {
         Ok(InodeIndex::new_unchecked(idx))
     }
     pub(crate) fn free_inode(&mut self, idx: InodeIndex) -> Result<(), Error> {
-        // free_inode_frame
+        // free every frame reachable from the inode:
+        // page_1 -> data frames; page_2 -> pointer pages -> data frames;
+        // page_3 -> root pointer pages -> pointer pages -> data frames
         if idx == RAMFS_ROOT_INODE_INDEX {
             return Err(Error::TryToFreeRoot);
         }
-        let inode = &self[idx];
-        for p in inode.page_1 {
-            if let Some(p) = p.to_option() {
-                self.free_frame(p);
+        let mut data_frames: alloc::vec::Vec<FrameIndex> = alloc::vec::Vec::new();
+        let mut ptr_frames: alloc::vec::Vec<FrameIndex> = alloc::vec::Vec::new();
+        {
+            let inode = &self[idx];
+            for p in inode.page_1 {
+                if let Some(f) = p.to_option() {
+                    data_frames.push(f);
+                }
             }
+            for p in inode.page_2 {
+                if let Some(f) = p.to_option() {
+                    ptr_frames.push(f);
+                }
+            }
+            for p in inode.page_3 {
+                if let Some(f) = p.to_option() {
+                    for sub in self[f].as_frame_ptrs() {
+                        if let Some(s) = sub.to_option() {
+                            ptr_frames.push(s);
+                        }
+                    }
+                    ptr_frames.push(f);
+                }
+            }
+        }
+        for f in ptr_frames {
+            for sub in self[f].as_frame_ptrs() {
+                if let Some(s) = sub.to_option() {
+                    data_frames.push(s);
+                }
+            }
+            self.free_frame(f);
+        }
+        for f in data_frames {
+            self.free_frame(f);
         }
         self.inode_bitmap.clear(*idx);
         Ok(())
@@ -144,10 +177,71 @@ impl RamFs {
             (inode as *const IndexNode).offset_from(&self[RAMFS_ROOT_INODE_INDEX] as *const _)
         } as usize)
     }
+    pub(crate) fn find_child_by_name(&self, dir_idx: InodeIndex, name: &str) -> Option<InodeIndex> {
+        self.dir_items_from_idx(dir_idx)
+            .ok()?
+            .iter()
+            .find(|item| item.has_same_name(name))
+            .map(|item| item.index())
+    }
+
+    /// Remove the directory entry `inode_idx` from `parent_idx` and shrink
+    /// the directory size. Does NOT free the inode itself.
+    pub(crate) fn remove_dir_entry(
+        &mut self,
+        parent_idx: InodeIndex,
+        inode_idx: InodeIndex,
+    ) -> Result<(), Error> {
+        let count = self[parent_idx].size as usize / structs_size::RAMFS_DIR_ITEM_SIZE;
+        let pos = {
+            let items = self.dir_items_from_idx(parent_idx)?;
+            items.iter().position(|i| i.index() == inode_idx)
+        };
+        let Some(pos) = pos else {
+            return Err(Error::NoSuchFile);
+        };
+        if count == 0 || pos >= count {
+            return Err(Error::NoSuchFile);
+        }
+        let frame_idx = self
+            .get_inode_nth_frame(parent_idx, 0)
+            .to_option()
+            .ok_or(Error::NoSuchFrame)?;
+        for i in pos..count - 1 {
+            let item = *self[frame_idx].nth_item(i + 1);
+            *self[frame_idx].nth_item_mut(i) = item;
+        }
+        self[parent_idx].size -= structs_size::RAMFS_DIR_ITEM_SIZE as u64;
+        Ok(())
+    }
+
+    /// rename(2) within one directory: update the inode name and its dir
+    /// entry. Cross-directory rename is not supported yet (EXDEV).
+    pub(crate) fn rename_inode(
+        &mut self,
+        parent_idx: InodeIndex,
+        inode_idx: InodeIndex,
+        new_name: &str,
+    ) -> Result<(), Error> {
+        set_filename(&mut self[inode_idx].name, new_name)?;
+        let frame_idx = self
+            .get_inode_nth_frame(parent_idx, 0)
+            .to_option()
+            .ok_or(Error::NoSuchFrame)?;
+        let items = self.dir_items_from_idx(parent_idx)?;
+        let Some(pos) = items.iter().position(|i| i.index() == inode_idx) else {
+            return Err(Error::NoSuchFile);
+        };
+        let new_name_bs = self[inode_idx].name;
+        self[frame_idx].nth_item_mut(pos).name.copy_from_slice(&new_name_bs);
+        Ok(())
+    }
+
     pub(crate) fn add_dir_entry(
         &mut self,
         parent_idx: InodeIndex,
         inode_idx: InodeIndex,
+        entry_name: &str,
     ) -> Result<(), Error> {
         trace!("FS add_dir_entry");
         let frame_idx = self.get_or_init_inode_nth_frame(parent_idx, 0)?;
@@ -165,11 +259,12 @@ impl RamFs {
         parent.size += structs_size::RAMFS_DIR_ITEM_SIZE as u64;
         trace!("ParentDir size after  add: {}", parent.size);
 
-        let name = self[inode_idx].name;
         let file_type = self[inode_idx].file_type;
         let item = self[frame_idx].nth_item_mut(item_idx);
 
-        item.name.copy_from_slice(&name);
+        // the dir entry has its own name (hard links share the inode but
+        // not the name), so it comes from the caller, not the inode
+        set_filename(&mut item.name, entry_name)?;
         item.file_type = file_type;
         item.index = inode_idx;
 
@@ -195,6 +290,57 @@ impl RamFs {
     /// the [`fs.start` `fs.start + fs.size`) must be legal
     pub unsafe fn as_raw_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self.fs_start() as *const u8, self.fs_size as usize) }
+    }
+
+    /// truncate(2) shrink: free every data frame of `idx` from `nth` onwards
+    /// (slot cleared + frame freed) and set the size to `len`.
+    pub(crate) fn truncate_shrink(&mut self, idx: InodeIndex, len: u64) -> Result<(), Error> {
+        let old_size = self[idx].size;
+        if len >= old_size {
+            self[idx].size = len;
+            return Ok(());
+        }
+        let first_free =
+            if len == 0 { 0 } else { (len as usize + RAMFS_FRAME_SIZE_BYTE - 1) / RAMFS_FRAME_SIZE_BYTE };
+        let last_nth = if old_size == 0 {
+            0
+        } else {
+            ((old_size as usize - 1) / RAMFS_FRAME_SIZE_BYTE) + 1
+        };
+        for nth in first_free..last_nth {
+            let Some(access) = FrameAccess::new(nth) else { break };
+            let frame = match access {
+                FrameAccess::Level1(i1) => {
+                    let f = self[idx].page_1[i1].to_option();
+                    if f.is_some() {
+                        self[idx].page_1[i1] = FramePtr::none();
+                    }
+                    f
+                }
+                FrameAccess::Level2(i1, i2) => {
+                    let Some(root) = self[idx].page_2[i1].to_option() else { continue };
+                    let f = self[root].as_frame_ptrs()[i2].to_option();
+                    if f.is_some() {
+                        self[root].as_frame_ptrs_mut()[i2] = FramePtr::none();
+                    }
+                    f
+                }
+                FrameAccess::Level3(i1, i2, i3) => {
+                    let Some(root) = self[idx].page_3[i1].to_option() else { continue };
+                    let Some(mid) = self[root].as_frame_ptrs()[i2].to_option() else { continue };
+                    let f = self[mid].as_frame_ptrs()[i3].to_option();
+                    if f.is_some() {
+                        self[mid].as_frame_ptrs_mut()[i3] = FramePtr::none();
+                    }
+                    f
+                }
+            };
+            if let Some(f) = frame {
+                self.free_frame(f);
+            }
+        }
+        self[idx].size = len;
+        Ok(())
     }
 
     pub fn get_inode_nth_frame(&self, idx: InodeIndex, nth: usize) -> FramePtr {

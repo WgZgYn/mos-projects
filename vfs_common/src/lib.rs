@@ -17,6 +17,7 @@ pub enum FileType {
 
     CharDevice,
     Fifo,
+    SymLink,
 }
 
 bitflags! {
@@ -53,6 +54,7 @@ string_enum!(
         NotSupported,
         BrokenPipe,
         WouldBlock,
+        NotEmpty,
         Pendding,
         //
         InternelError,
@@ -124,6 +126,7 @@ pub fn vfs_error_to_errno(ret: VfsError) -> i64 {
         VfsError::NotSupported => 38,      // ENOSYS
         VfsError::BrokenPipe => 32,        // EPIPE
         VfsError::WouldBlock => 11,        // EAGAIN
+        VfsError::NotEmpty => 39,          // ENOTEMPTY
         VfsError::Pendding => 11,          // EAGAIN
         VfsError::InternelError => 5,      // EIO
         VfsError::Unknown => 5,            // EIO
@@ -145,6 +148,7 @@ fn errno_to_vfs_error(errno: i64) -> Option<VfsError> {
         38 => VfsError::NotSupported,
         32 => VfsError::BrokenPipe,
         11 => VfsError::WouldBlock,
+        39 => VfsError::NotEmpty,
         _ => return None,
     })
 }

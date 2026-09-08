@@ -157,6 +157,54 @@ pub fn sys_mprotect(addr: u64, len: u64, prot: u32) -> isize {
 pub fn sys_madvise(addr: u64, len: u64, advice: u32) -> isize {
     syscall(Syscall::Madvise as _, [addr, len, advice as u64]) as _
 }
+pub fn sys_mkdir(path: *const c_char, mode: u32) -> isize {
+    syscall(Syscall::Mkdir as _, [path as u64, mode as u64, 0]) as _
+}
+pub fn sys_unlink(path: *const c_char) -> isize {
+    syscall(Syscall::Unlink as _, [path as u64, 0, 0]) as _
+}
+pub fn sys_rmdir(path: *const c_char) -> isize {
+    syscall(Syscall::Rmdir as _, [path as u64, 0, 0]) as _
+}
+pub fn sys_rename(old: *const c_char, new: *const c_char) -> isize {
+    syscall(Syscall::Rename as _, [old as u64, new as u64, 0]) as _
+}
+pub fn sys_link(old: *const c_char, new: *const c_char) -> isize {
+    syscall(Syscall::Link as _, [old as u64, new as u64, 0]) as _
+}
+pub fn sys_symlink(target: *const c_char, linkpath: *const c_char) -> isize {
+    syscall(Syscall::Symlink as _, [target as u64, linkpath as u64, 0]) as _
+}
+pub fn sys_readlink(path: *const c_char, buf: &mut [u8]) -> isize {
+    syscall(
+        Syscall::Readlink as _,
+        [path as u64, buf.as_mut_ptr() as u64, buf.len() as u64],
+    ) as _
+}
+pub fn sys_access(path: *const c_char, mode: u32) -> isize {
+    syscall(Syscall::Access as _, [path as u64, mode as u64, 0]) as _
+}
+pub fn sys_umask(mask: u32) -> u32 {
+    syscall(Syscall::Umask as _, [mask as u64, 0, 0]) as _
+}
+pub fn sys_truncate(path: *const c_char, len: u64) -> isize {
+    syscall(Syscall::Truncate as _, [path as u64, len, 0]) as _
+}
+pub fn sys_ftruncate(fd: u64, len: u64) -> isize {
+    syscall(Syscall::Ftruncate as _, [fd, len, 0]) as _
+}
+pub fn sys_chmod(path: *const c_char, mode: u32) -> isize {
+    syscall(Syscall::Chmod as _, [path as u64, mode as u64, 0]) as _
+}
+pub fn sys_fchmod(fd: u64, mode: u32) -> isize {
+    syscall(Syscall::Fchmod as _, [fd, mode as u64, 0]) as _
+}
+pub fn sys_fcntl(fd: u64, cmd: u32, arg: u64) -> isize {
+    syscall(Syscall::Fcntl as _, [fd, cmd as u64, arg]) as _
+}
+pub fn sys_dup3(src: u64, dst: u64, flags: u32) -> isize {
+    syscall(Syscall::Dup3 as _, [src, dst, flags as u64]) as _
+}
 pub fn sys_pipe(addr: &mut [i32; 2]) -> i32 {
     syscall(Syscall::Pipe as _, [addr.as_mut_ptr() as _, 0, 0]) as _
 }

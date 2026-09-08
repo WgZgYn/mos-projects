@@ -140,6 +140,9 @@ struct MemInode {
 }
 
 impl Inode for MemInode {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn meta_data(&self) -> &[u8] {
         &[]
     }

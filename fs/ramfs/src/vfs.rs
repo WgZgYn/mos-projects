@@ -120,6 +120,7 @@ impl DirOps for FsNode {
             vfs_common::FileType::Regular => FileType::File,
             vfs_common::FileType::Directory => FileType::Directory,
             vfs_common::FileType::Fifo => FileType::Fifo,
+            vfs_common::FileType::SymLink => FileType::SymLink,
             _ => return Err(VfsError::NotSupported),
         };
         info!("[RAMFS] create file {:?}", file_type);
@@ -135,13 +136,71 @@ impl DirOps for FsNode {
             "add dir entry {:?} from parent {:?}",
             inode_idx, parent_inode_idx
         );
-        fs.add_dir_entry(parent_inode_idx, inode_idx)
+        fs.add_dir_entry(parent_inode_idx, inode_idx, name)
             .map_err(|_| VfsError::NoSpace)?;
 
         Ok(Arc::new(FsNode {
             fs: self.fs.clone(),
             idx: inode_idx,
         }))
+    }
+
+    fn remove(&self, name: &str) -> VfsResult<()> {
+        let child_idx = self
+            .fs
+            .read()
+            .find_child_by_name(self.idx, name)
+            .ok_or(VfsError::NotFound)?;
+        let mut fs = self.fs.write();
+        fs.remove_dir_entry(self.idx, child_idx)
+            .map_err(|_| VfsError::NotFound)?;
+        fs.free_inode(child_idx).map_err(|_| VfsError::IoError)?;
+        // drop cached Arc so the frames we just freed are not reused
+        self.fs.inodes.lock().remove(&child_idx);
+        Ok(())
+    }
+
+    fn rename(&self, old_name: &str, new_name: &str) -> VfsResult<()> {
+        if old_name == new_name {
+            return Ok(());
+        }
+        let child_idx = self
+            .fs
+            .read()
+            .find_child_by_name(self.idx, old_name)
+            .ok_or(VfsError::NotFound)?;
+        if self
+            .fs
+            .read()
+            .find_child_by_name(self.idx, new_name)
+            .is_some()
+        {
+            return Err(VfsError::AlreadyExists);
+        }
+        self.fs
+            .write()
+            .rename_inode(self.idx, child_idx, new_name)
+            .map_err(|_| VfsError::IoError)?;
+        Ok(())
+    }
+
+    fn link(&self, name: &str, node: &Arc<dyn Inode>) -> VfsResult<()> {
+        let Some(src) = node.as_any().downcast_ref::<FsNode>() else {
+            return Err(VfsError::NotSupported);
+        };
+        if self
+            .fs
+            .read()
+            .find_child_by_name(self.idx, name)
+            .is_some()
+        {
+            return Err(VfsError::AlreadyExists);
+        }
+        self.fs
+            .write()
+            .add_dir_entry(self.idx, src.idx, name)
+            .map_err(|_| VfsError::NoSpace)?;
+        Ok(())
     }
 
     fn readdir(&self, offset: usize) -> VfsResult<Option<DirEntry>> {
@@ -168,6 +227,7 @@ impl DirOps for FsNode {
                     FileType::File => vfs_common::FileType::Regular,
                     FileType::Directory => vfs_common::FileType::Directory,
                     FileType::Fifo => vfs_common::FileType::Fifo,
+                    FileType::SymLink => vfs_common::FileType::SymLink,
                     _ => return Err(VfsError::NotSupported),
                 };
 
@@ -186,6 +246,9 @@ impl DirOps for FsNode {
 }
 
 impl Inode for FsNode {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn meta_data(&self) -> &[u8] {
         &[]
     }
@@ -202,8 +265,29 @@ impl Inode for FsNode {
             FileType::File => vfs_common::FileType::Regular,
             FileType::Directory => vfs_common::FileType::Directory,
             FileType::Fifo => vfs_common::FileType::Fifo,
+            FileType::SymLink => vfs_common::FileType::SymLink,
             _ => unimplemented!(),
         }
+    }
+    fn truncate(&self, len: u64) -> VfsResult<()> {
+        let old_size = { self.fs.read()[self.idx].size };
+        if len > old_size {
+            // extend with zeros via the normal write path
+            let zeros = [0u8; RAMFS_FRAME_SIZE_BYTE];
+            let mut off = old_size as usize;
+            let mut rem = (len - old_size) as usize;
+            while rem > 0 {
+                let n = rem.min(RAMFS_FRAME_SIZE_BYTE);
+                self.write(&IoContext::default(), off, &zeros[..n])?;
+                off += n;
+                rem -= n;
+            }
+            return Ok(());
+        }
+        self.fs
+            .write()
+            .truncate_shrink(self.idx, len)
+            .map_err(|_| VfsError::IoError)
     }
     fn parent(&self) -> VfsResult<Option<Arc<dyn Inode>>> {
         let parent = self.fs.read()[self.idx].parent;

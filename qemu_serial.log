@@ -1,0 +1,190 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Primary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Primary,Master,0x0)
+[UsableMemoryRegion { start: 38604800, end: 1342177280 }, UsableMemoryRegion { start: 1346371584, end: 3144925184 }, UsableMemoryRegion { start: 3149119488, end: 3151945728 }, UsableMemoryRegion { start: 3181174784, end: 3197366272 }, UsableMemoryRegion { start: 3198156800, end: 3209613312 }, UsableMemoryRegion { start: 3212832768, end: 3220029440 }, UsableMemoryRegion { start: 4294967296, end: 5368709120 }]
+total 0xFB258000 bytes free memory
+is kernal overlap free space? None
+Frame count: 1310720
+[LOGGER] logger init ok
+[MEM]: memory init ok
+[CPU TSC]: info CpuTscInfo { has_tsc: Some(true), tsc_freq: None, has_invariant_tsc: Some(false) }]
+[ARCH] arch init ok
+[FRAMEBUFFER]: FrameBufferInfo { byte_len: 16384000, width: 2560, height: 1600, pixel_format: Bgr, bytes_per_pixel: 4, stride: 2560 }
+[VFS] load ramfs
+[VFS] mount devfs
+[RAMFS] create file Directory
+[VFS] mount memfs
+[RAMFS] create file Directory
+[VFS] init ok
+[ACPI] cr0 0x80010033
+	cr3 0x101000
+	cr4 0x668
+	efer 0xd00
+	64 KERNEL CODE: UserSegment(AF9B000000FFFF)
+	64 KERNEL DATA: UserSegment(CF93000000FFFF)
+ACPI InterruptModel: Apic(Apic { local_apic_address: 4276092928, io_apics: [IoApic { id: 0, address: 4273995776, global_system_interrupt_base: 0 }], local_apic_nmi_lines: [NmiLine { processor: All, line: Lint1 }], interrupt_source_overrides: [InterruptSourceOverride { isa_source: 0, global_system_interrupt: 2, polarity: SameAsBus, trigger_mode: SameAsBus }, InterruptSourceOverride { isa_source: 5, global_system_interrupt: 5, polarity: ActiveHigh, trigger_mode: Level }, InterruptSourceOverride { isa_source: 9, global_system_interrupt: 9, polarity: ActiveHigh, trigger_mode: Level }, InterruptSourceOverride { isa_source: 10, global_system_interrupt: 10, polarity: ActiveHigh, trigger_mode: Level }, InterruptSourceOverride { isa_source: 11, global_system_interrupt: 11, polarity: ActiveHigh, trigger_mode: Level }], nmi_sources: [], also_has_legacy_pics: true })
+ACPI ProcessorInfo: Some(ProcessorInfo { boot_processor: Processor { processor_uid: 0, local_apic_id: 0, state: Running, is_ap: false }, application_processors: [Processor { processor_uid: 1, local_apic_id: 1, state: WaitingForSipi, is_ap: true }, Processor { processor_uid: 2, local_apic_id: 2, state: WaitingForSipi, is_ap: true }, Processor { processor_uid: 3, local_apic_id: 3, state: WaitingForSipi, is_ap: true }] })
+ACPI PowerProfile: Unspecified
+ACPI PmTimer: Some(PmTimer { base: GenericAddress { address_space: SystemIo, bit_width: 32, bit_offset: 0, access_size: 0, address: 45064 }, supports_32bit: false })
+ACPI Tables DSDT: Ok(AmlTable { phys_address: 3212288000, length: 8771, revision: 1 })
+ACPI Tables SSDTS: 
+[LAPIC] apic_id=0, hz=1029073040, period=1029073, tccr1=979173, tccr2=786073, lvt=0x20020
+[INTR] MODE: APIC
+[SMP] setting up AP trampoline...
+[SMP] trampoline code size=264 bytes, target phys=0x8000
+[SMP] creating identity mappings...
+[SMP]   TEMP_PML4  0x6000 -> 0x6000
+[SMP]   BOOT_DATA  0x7000 -> 0x7000
+[SMP]   TRAMPOLINE 0x8000 -> 0x8000
+[SMP]   TEMP_STACK 0x9000 -> 0x9000
+[SMP] copying BSP PML4 (phys=0x101000) -> TEMP_PML4 (phys=0x6000)
+[SMP] PML4 copy done
+[SMP] writing trampoline code to phys 0x8000...
+[SMP] trampoline code written
+[SMP] trampoline setup complete
+[SMP] found 3 AP(s) in Waiting state
+[SMP] starting AP CpuId(1), apic_id=1
+[AP] CpuId(1) starting, apic_id: 1
+[SMP][apic=1] flushing caches (wbinvd)...
+[SMP][apic=1] sending INIT ASSERT (x2apic=false, icr=0x10000000000c500)...
+[SMP][apic=1] INIT ASSERT delivered (0 spins)
+[SMP][apic=1] sending INIT DEASSERT (icr=0x100000000008500)...
+[SMP][apic=1] INIT DEASSERT delivered (0 spins)
+[SMP][apic=1] waiting 10ms after deassert...
+[SMP][apic=1] sending SIPI #1 (vector=0x8, addr=0x8000)...
+[SMP][apic=1] SIPI #1 delivered (0 spins)
+[AP  1] trampoline ok, cr3=0x101000
+[SMP][apic=1] sending SIPI #2 (vector=0x8, addr=0x8000)...
+[percpu][CpuId(1)] init start, cpu index=1
+[SMP][apic=1] SIPI #2 delivered (0 spins)
+[percpu][1] setting up TSS + GDT...
+[SMP][apic=1] INIT+SIPI sequence complete, BSP waiting
+[percpu][1] GDT loaded, setting GS base to 0xffffffff819aba00
+[percpu][1] GS base set, initializing FPU...
+[percpu][1] FPU done, initializing syscall MSRs...
+[percpu][1] init complete
+[LAPIC] apic_id=16777216, hz=1001354485, period=1001354, tccr1=998854, tccr2=619654, lvt=0x20020
+[AP  1] LAPIC ready, apic_id=16777216, intrs_enabled=false
+[AP  1] init done, entering idle loop
+[SMP][CpuId(1)] AP init SUCCESS in 34ms
+[AP] CpuId(1) init finish
+STI HLT loop
+[SMP] starting AP CpuId(2), apic_id=2
+[AP] CpuId(2) starting, apic_id: 2
+[SMP][apic=2] flushing caches (wbinvd)...
+[SMP][apic=2] sending INIT ASSERT (x2apic=false, icr=0x20000000000c500)...
+[SMP][apic=2] INIT ASSERT delivered (0 spins)
+[SMP][apic=2] sending INIT DEASSERT (icr=0x200000000008500)...
+[SMP][apic=2] INIT DEASSERT delivered (0 spins)
+[SMP][apic=2] waiting 10ms after deassert...
+[SMP][apic=2] sending SIPI #1 (vector=0x8, addr=0x8000)...
+[SMP][apic=2] SIPI #1 delivered (0 spins)
+[AP  2] trampoline ok, cr3=0x101000
+[SMP][apic=2] sending SIPI #2 (vector=0x8, addr=0x8000)...
+[percpu][CpuId(2)] init start, cpu index=2
+[SMP][apic=2] SIPI #2 delivered (0 spins)
+[percpu][2] setting up TSS + GDT...
+[SMP][apic=2] INIT+SIPI sequence complete, BSP waiting
+[percpu][2] GDT loaded, setting GS base to 0xffffffff819afde0
+[percpu][2] GS base set, initializing FPU...
+[percpu][2] FPU done, initializing syscall MSRs...
+[percpu][2] init complete
+[LAPIC] apic_id=33554432, hz=1001610659, period=1001610, tccr1=998310, tccr2=627210, lvt=0x20020
+[AP  2] LAPIC ready, apic_id=33554432, intrs_enabled=false
+[AP  2] init done, entering idle loop
+[SMP][CpuId(2)] AP init SUCCESS in 34ms
+[AP] CpuId(2) init finish
+STI HLT loop
+[SMP] starting AP CpuId(3), apic_id=3
+[AP] CpuId(3) starting, apic_id: 3
+[SMP][apic=3] flushing caches (wbinvd)...
+[SMP][apic=3] sending INIT ASSERT (x2apic=false, icr=0x30000000000c500)...
+[SMP][apic=3] INIT ASSERT delivered (0 spins)
+[SMP][apic=3] sending INIT DEASSERT (icr=0x300000000008500)...
+[SMP][apic=3] INIT DEASSERT delivered (0 spins)
+[SMP][apic=3] waiting 10ms after deassert...
+[SMP][apic=3] sending SIPI #1 (vector=0x8, addr=0x8000)...
+[SMP][apic=3] SIPI #1 delivered (0 spins)
+[AP  3] trampoline ok, cr3=0x101000
+[SMP][apic=3] sending SIPI #2 (vector=0x8, addr=0x8000)...
+[percpu][CpuId(3)] init start, cpu index=3
+[SMP][apic=3] SIPI #2 delivered (0 spins)
+[percpu][3] setting up TSS + GDT...
+[SMP][apic=3] INIT+SIPI sequence complete, BSP waiting
+[percpu][3] GDT loaded, setting GS base to 0xffffffff819b41c0
+[percpu][3] GS base set, initializing FPU...
+[percpu][3] FPU done, initializing syscall MSRs...
+[percpu][3] init complete
+[LAPIC] apic_id=50331648, hz=1001402467, period=1001402, tccr1=999502, tccr2=571902, lvt=0x20020
+[AP  3] LAPIC ready, apic_id=50331648, intrs_enabled=false
+[AP  3] init done, entering idle loop
+[SMP][CpuId(3)] AP init SUCCESS in 32ms
+[AP] CpuId(3) init finish
+STI HLT loop
+[SMP] AP bring-up complete
+[SMP] initializing BSP percpu...
+[SMP] BSP id=CpuId(0), entering post_init
+[percpu][CpuId(0)] init start, cpu index=0
+[percpu][0] setting up TSS + GDT...
+[percpu][0] GDT loaded, setting GS base to 0xffffffff819a7620
+[percpu][0] GS base set, initializing FPU...
+[percpu][0] FPU done, initializing syscall MSRs...
+[percpu][0] init complete
+[LAPIC] apic_id=0, hz=1001334483, period=1001334, tccr1=998834, tccr2=781434, lvt=0x20020
+[AP  0] LAPIC ready, apic_id=0, intrs_enabled=false
+[SMP] BSP post_init complete
+
+============ MOS BOOT SUMMARY ============
+  Total CPUs: 4  |  Running: 4  |  Failed: 0  |  Unstarted: 0
+  BSP: 1  |  APs: 3/3
+  [BSP] OK      | apic_id=0 | boot processor
+  [AP] OK      | apic_id=1 | 
+  [AP] OK      | apic_id=2 | 
+  [AP] OK      | apic_id=3 | 
+============================================
+
+
+__/\\\\____________/\\\\_______/\\\\\__________/\\\\\\\\\\\___
+ _\/\\\\\\________/\\\\\\_____/\\\///\\\______/\\\/////////\\\_
+  _\/\\\//\\\____/\\\//\\\___/\\\/__\///\\\___\//\\\______\///__
+   _\/\\\\///\\\/\\\/_\/\\\__/\\\______\//\\\___\////\\\_________
+    _\/\\\__\///\\\/___\/\\\_\/\\\_______\/\\\______\////\\\______
+     _\/\\\____\///_____\/\\\_\//\\\______/\\\__________\////\\\___
+      _\/\\\_____________\/\\\__\///\\\__/\\\_____/\\\______\//\\\__
+       _\/\\\_____________\/\\\____\///\\\\\/_____\///\\\\\\\\\\\/___
+        _\///______________\///_______\/////_________\///////////_____
+
+interrupt exit point: FFFFFFFF81931910
+spawn init process
+spawned: init tid=Tid(5)
+console window ready
+clear keyboard buffer
+[init] running main
+init PS/2 mouse
+[mouse] init start
+[mouse] config byte = 0x67
+[mouse] new config byte = 0x67
+[mouse] verify config = 0x67
+[mouse] WARNING: mouse clock disabled (bit5 set)!
+[mouse] probing with RESET...
+[mouse] RESET ACK = 0xfa
+[mouse] self-test = 0xaa
+[mouse] id = 0x0
+[mouse] defaults ACK = 0xfa
+[mouse] enable report ACK = 0xfa
+[mouse] init SUCCESS
+[OK] PS/2 mouse initialized
+kernel bootstrap complete
+STI HLT loop
+[init] create child process shell
+[syscall] sys_execve
+"shell"["/shell", "hello", "world"]["PATH=/"]
+[LINKER] LOAD static-linked ELF
+[LINKER] finished loading shell
+[shell] mos shell startup
+[shell] print process args and envp
+arg[0] "/shell"
+arg[1] "hello"
+arg[2] "world"
+env[0] "PATH=/"
+[shell] ready to get input
+>> 

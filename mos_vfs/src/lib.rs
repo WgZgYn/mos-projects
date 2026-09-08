@@ -155,7 +155,11 @@ pub fn vfs_open_dentry(dentry: Arc<Dentry>, flags: OpenFlags) -> VfsResult<OpenR
     let inode = dentry.inode().ok_or(VfsError::NotFound)?;
     let ft = inode.file_type();
     match ft {
-        FileType::Directory | FileType::Regular | FileType::BlockDevice | FileType::CharDevice => {
+        FileType::Directory
+        | FileType::Regular
+        | FileType::BlockDevice
+        | FileType::CharDevice
+        | FileType::SymLink => {
             let offset = if flags.contains(OpenFlags::APPEND) {
                 inode.file_size()
             } else {

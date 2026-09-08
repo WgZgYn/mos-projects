@@ -28,6 +28,9 @@ impl FileOps for EmbeddingInode {
 }
 
 impl Inode for EmbeddingInode {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn meta_data(&self) -> &[u8] {
         RAW_BPP
     }

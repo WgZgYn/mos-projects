@@ -7,12 +7,14 @@ mod os;
 mod syscall;
 
 use crate::syscall::{
-    sys_brk, sys_chdir, sys_clock_freq, sys_clock_gettime, sys_clock_ticks, sys_close,
-    sys_create_thread, sys_create_window, sys_destroy_window, sys_dup, sys_dup2, sys_execve,
-    sys_exit, sys_fork, sys_fstat, sys_getcpu, sys_getdents, sys_gettimeofday, sys_lseek,
-    sys_madvise, sys_mkfifo, sys_mmap, sys_mprotect, sys_munmap, sys_open, sys_pipe, sys_rand,
-    sys_read, sys_sem_create, sys_sem_signal, sys_sem_wait, sys_sleep, sys_stat, sys_wait,
-    sys_window_mark_dirty, sys_window_sync, sys_write, sys_yield,
+    sys_access, sys_brk, sys_chdir, sys_chmod, sys_clock_freq, sys_clock_gettime, sys_clock_ticks,
+    sys_close, sys_create_thread, sys_create_window, sys_destroy_window, sys_dup, sys_dup2,
+    sys_dup3, sys_execve, sys_exit, sys_fchmod, sys_fcntl, sys_fork, sys_fstat, sys_ftruncate,
+    sys_getcpu, sys_getdents, sys_gettimeofday, sys_link, sys_lseek, sys_madvise, sys_mkdir,
+    sys_mkfifo, sys_mmap, sys_mprotect, sys_munmap, sys_open, sys_pipe, sys_rand, sys_read,
+    sys_readlink, sys_rename, sys_rmdir, sys_sem_create, sys_sem_signal, sys_sem_wait, sys_sleep,
+    sys_stat, sys_symlink, sys_truncate, sys_umask, sys_unlink, sys_wait, sys_window_mark_dirty,
+    sys_window_sync, sys_write, sys_yield,
 };
 use core::arch::global_asm;
 use core::ffi::{CStr, c_char};
@@ -272,6 +274,45 @@ pub fn pipe() -> Option<Pipe> {
 pub fn mkfifo(path: &CStr) -> VfsResult<()> {
     isize_to_vfs_result(sys_mkfifo(path)).map(|_| ())
 }
+pub fn mkdir(path: &CStr, mode: u32) -> VfsResult<()> {
+    isize_to_vfs_result(sys_mkdir(path.as_ptr(), mode)).map(|_| ())
+}
+pub fn unlink(path: &CStr) -> VfsResult<()> {
+    isize_to_vfs_result(sys_unlink(path.as_ptr())).map(|_| ())
+}
+pub fn rmdir(path: &CStr) -> VfsResult<()> {
+    isize_to_vfs_result(sys_rmdir(path.as_ptr())).map(|_| ())
+}
+pub fn rename(old: &CStr, new: &CStr) -> VfsResult<()> {
+    isize_to_vfs_result(sys_rename(old.as_ptr(), new.as_ptr())).map(|_| ())
+}
+pub fn link(old: &CStr, new: &CStr) -> VfsResult<()> {
+    isize_to_vfs_result(sys_link(old.as_ptr(), new.as_ptr())).map(|_| ())
+}
+pub fn symlink(target: &CStr, linkpath: &CStr) -> VfsResult<()> {
+    isize_to_vfs_result(sys_symlink(target.as_ptr(), linkpath.as_ptr())).map(|_| ())
+}
+pub fn readlink(path: &CStr, buf: &mut [u8]) -> VfsResult<usize> {
+    isize_to_vfs_result(sys_readlink(path.as_ptr(), buf))
+}
+pub fn access(path: &CStr, mode: u32) -> VfsResult<()> {
+    isize_to_vfs_result(sys_access(path.as_ptr(), mode)).map(|_| ())
+}
+pub fn umask(mask: u32) -> u32 {
+    sys_umask(mask)
+}
+pub fn truncate(path: &CStr, len: u64) -> VfsResult<()> {
+    isize_to_vfs_result(sys_truncate(path.as_ptr(), len)).map(|_| ())
+}
+pub fn ftruncate(fd: FileDesc, len: u64) -> VfsResult<()> {
+    isize_to_vfs_result(sys_ftruncate(fd.0 as u64, len)).map(|_| ())
+}
+pub fn chmod(path: &CStr, mode: u32) -> VfsResult<()> {
+    isize_to_vfs_result(sys_chmod(path.as_ptr(), mode)).map(|_| ())
+}
+pub fn fchmod(fd: FileDesc, mode: u32) -> VfsResult<()> {
+    isize_to_vfs_result(sys_fchmod(fd.0 as u64, mode)).map(|_| ())
+}
 pub fn dup(fd: FileDesc) -> Option<FileDesc> {
     let ret = sys_dup(fd.0 as _);
     if ret >= 0 {
@@ -284,6 +325,20 @@ pub fn dup(fd: FileDesc) -> Option<FileDesc> {
 pub fn dup2(src: FileDesc, dst: FileDesc) -> bool {
     let ret = sys_dup2(src.0 as _, dst.0 as _);
     ret == 0
+}
+
+// Linux fcntl commands
+pub const F_DUPFD: u32 = 0;
+pub const F_GETFD: u32 = 1;
+pub const F_SETFD: u32 = 2;
+pub const F_GETFL: u32 = 3;
+pub const F_SETFL: u32 = 4;
+
+pub fn fcntl(fd: FileDesc, cmd: u32, arg: u64) -> isize {
+    sys_fcntl(fd.0 as u64, cmd, arg)
+}
+pub fn dup3(src: FileDesc, dst: FileDesc, flags: u32) -> isize {
+    sys_dup3(src.0 as u64, dst.0 as u64, flags)
 }
 
 pub fn create_thread(entry: *const fn() -> !, stack: *mut u64) -> u64 {

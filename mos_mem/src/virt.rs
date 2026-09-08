@@ -303,31 +303,96 @@ impl MemoryAreas {
         flags: MemoryFlags,
         backing: BackingStore,
     ) -> KResult<PageRange> {
-        let range = start
-            .and_then(|start| {
+        let range = match start {
+            Some(start) => {
                 let range = PageRange {
                     start,
                     end: start + pages,
                 };
-                if (start >= self.mmap_base || flags.map.contains(MemoryMapFlags::FIXED))
-                    && !self.check_overlap(&range)
-                {
-                    Some(range)
+                let high = start >= self.mmap_base;
+                let fixed = flags.map.contains(MemoryMapFlags::FIXED);
+                if (high || fixed) && !self.check_overlap(&range) {
+                    range
+                } else if fixed {
+                    // Linux MAP_FIXED: discard whatever was mapped there
+                    self.remove_range(range.start, range.end)?;
+                    range
+                } else if high {
+                    // hint not usable, fall back to a free area
+                    self.find_free_area(pages).ok_or(KError::NotMapped)?
                 } else {
-                    None
+                    return Err(KError::NotMapped);
                 }
-            })
-            .or_else(|| {
-                if !flags.map.contains(MemoryMapFlags::FIXED) {
-                    self.find_free_area(pages)
-                } else {
-                    None
-                }
-            })
-            .ok_or(KError::NotMapped)?;
+            }
+            None => self.find_free_area(pages).ok_or(KError::NotMapped)?,
+        };
 
         self.try_add_area(MemoryArea::new(range, flags, backing))?;
         Ok(range)
+    }
+
+    /// Remove any areas overlapping [start, end), keeping the untouched
+    /// head/tail pieces; PTEs of the removed pages are unmapped so the
+    /// pages re-fault under their new mapping (MAP_FIXED semantics).
+    fn remove_range(&mut self, start: Page, end: Page) -> KResult<()> {
+        let mut removed: Vec<PageRange> = Vec::new();
+        let mut affected: Vec<(Page, MemoryArea)> = Vec::new();
+        let mut upper = end;
+        loop {
+            match self.areas.range(..upper).next_back() {
+                Some((&key, area)) if area.range.end > start => {
+                    affected.push((key, area.clone()));
+                    upper = key;
+                }
+                _ => break,
+            }
+        }
+        for (key, area) in affected {
+            self.areas.remove(&key);
+            let mid_start = area.range.start.max(start);
+            let mid_end = area.range.end.min(end);
+            removed.push(PageRange {
+                start: mid_start,
+                end: mid_end,
+            });
+            if area.range.start < start {
+                self.areas.insert(
+                    area.range.start,
+                    MemoryArea {
+                        range: PageRange {
+                            start: area.range.start,
+                            end: start,
+                        },
+                        ..area.clone()
+                    },
+                );
+            }
+            if mid_end < area.range.end {
+                self.areas.insert(
+                    mid_end,
+                    MemoryArea {
+                        range: PageRange {
+                            start: mid_end,
+                            end: area.range.end,
+                        },
+                        ..area
+                    },
+                );
+            }
+        }
+        for range in removed {
+            for page in (PageRange {
+                start: range.start,
+                end: range.end,
+            }) {
+                if self.mapper.translate_page(page).is_ok() {
+                    unsafe {
+                        let _ = self.mapper.unmap(page).map(|(_, f)| f.flush());
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn munmap(&mut self, start: Page, pages: u64) -> KResult<()> {

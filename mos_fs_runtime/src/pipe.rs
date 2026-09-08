@@ -31,6 +31,9 @@ pub struct PipeInode {
 }
 
 impl Inode for PipeInode {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn file_type(&self) -> FileType {
         FileType::Fifo
     }
@@ -140,6 +143,9 @@ pub struct FifoInode {
 }
 
 impl Inode for FifoInode {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn file_type(&self) -> FileType {
         FileType::Fifo
     }

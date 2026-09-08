@@ -62,6 +62,9 @@ impl FileOps for TtyInode {
 }
 
 impl Inode for TtyInode {
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
     fn meta_data(&self) -> &[u8] {
         b"tty0"
     }

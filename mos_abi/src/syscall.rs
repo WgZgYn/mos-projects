@@ -34,6 +34,8 @@ pub enum Syscall {
     Writev = 20,
     Dup = 32,
     DupTo = 33,
+    Fcntl = 72,
+    Dup3 = 292,
 
     // Time
     Nanosleep = 35,
@@ -66,6 +68,19 @@ pub enum Syscall {
     GetCWD = 79,
     ChDir = 80,
     Mkdir = 83,
+    Unlink = 87,
+    Rmdir = 84,
+    Rename = 82,
+    Link = 86,
+    Symlink = 88,
+    Readlink = 89,
+    Access = 21,
+    Umask = 95,
+    Truncate = 76,
+    Ftruncate = 77,
+    Chmod = 90,
+    Fchmod = 91,
+    Faccessat = 269,
 
     // ===== MOS private syscalls =====
     Rand = MOS_SYSCALL_BASE,
