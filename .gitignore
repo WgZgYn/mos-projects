@@ -5,4 +5,6 @@
 user/target
 settings.local.json
 .idea
-/user/.ideaqemu_serial.log
+/user/.idea
+qemu_serial.log
+qemu_stderr.log
