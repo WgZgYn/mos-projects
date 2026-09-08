@@ -1,4 +1,5 @@
 use log::info;
+use mos_abi::error::KError;
 use mos_abi::fs::FileDesc;
 use mos_arch::structs::SyscallContext;
 use mos_task::current_tcb;
@@ -9,7 +10,7 @@ pub fn raw_sys_close(context: &mut SyscallContext, args: [u64; 6]) {
     if sys_close(fd) {
         context.scratch.rax = 0;
     } else {
-        context.scratch.rax = u64::MAX;
+        crate::ret_err(context, KError::BadFd);
     }
 }
 

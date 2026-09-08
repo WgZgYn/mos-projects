@@ -6,7 +6,7 @@ use alloc::ffi::CString;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::ffi::CStr;
-use user_lib::fs::OpenFlags;
+use user_lib::mos::fs::{O_DIRECTORY, O_RDONLY};
 use user_lib::mos::ffi::NullEndPointerArray;
 use user_lib::{Args, chdir, exec, execve, exit, fork, get_char, open, print, println, waitpid};
 
@@ -100,14 +100,14 @@ fn handler_cd(path: &str) {
             return;
         };
 
-        let Some(dir) = open(s.as_ref(), OpenFlags::READ | OpenFlags::DIRECTORY) else {
+        let Some(dir) = open(s.as_ref(), O_RDONLY | O_DIRECTORY) else {
             println!("Failed to open directory");
             return;
         };
 
         println!("try change work dir");
         let ok = chdir(dir);
-        if ok == u64::MAX {
+        if (ok as i64) < 0 {
             println!("chdir failed");
             return;
         }

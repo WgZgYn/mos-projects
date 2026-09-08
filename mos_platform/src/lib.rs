@@ -6,6 +6,7 @@ mod acpi_handler;
 pub mod apic;
 pub mod keyboard;
 pub mod pic;
+pub mod rtc;
 pub mod smp;
 pub mod timer;
 

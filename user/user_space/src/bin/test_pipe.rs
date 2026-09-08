@@ -13,7 +13,7 @@ fn main() -> i32 {
     };
 
     let ret = fork();
-    if ret == u64::MAX {
+    if (ret as i64) < 0 {
         println!("fork failed");
         return -1;
     }

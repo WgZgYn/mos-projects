@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::vec;
-use user_lib::fs::OpenFlags;
+use user_lib::mos::fs::O_RDONLY;
 use user_lib::{Args, mos::ffi::NullEndPointerArray, open, print, println, read};
 
 #[unsafe(no_mangle)]
@@ -34,7 +34,7 @@ fn main(argc: usize, argv: Args) -> i32 {
         return -1;
     };
 
-    let Some(fd) = open(filepath, OpenFlags::READ) else {
+    let Some(fd) = open(filepath, O_RDONLY) else {
         println!("open {:?} failed", filepath);
         return -1;
     };

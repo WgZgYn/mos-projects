@@ -1,9 +1,11 @@
 use mos_abi::error::{KError, KResult};
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
+use mos_lib::align::align_up;
 use mos_mem::virt::{BackingStore, MapFile, MemoryFlags};
 use mos_task::current_tcb;
 use vfs_common::OpenFlags;
+use x86_64::VirtAddr;
 use x86_64::structures::paging::Page;
 use x86_64::structures::paging::page::PageRange;
 
@@ -54,4 +56,23 @@ pub fn sys_mmap(
 
 pub fn sys_munmap(start: Page, pages: u64) -> KResult<()> {
     current_tcb().process.mem.munmap(start, pages)
+}
+
+/// mprotect(2): addr must be page-aligned (EINVAL), len rounds up to pages.
+/// prot bits are Linux PROT_READ/PROT_WRITE/PROT_EXEC, same values as
+/// [`MemoryProtFlags`]; unknown bits are ignored.
+pub fn sys_mprotect(addr: u64, len: u64, prot_bits: u64) -> KResult<()> {
+    if addr % 4096 != 0 || len == 0 {
+        return Err(KError::InvalidArg);
+    }
+    let start = Page::containing_address(VirtAddr::new(addr));
+    let pages = align_up(len, 4096) / 4096;
+    let prot = MemoryProtFlags::from_bits_truncate(prot_bits as u32);
+    current_tcb().process.mem.protect(start, pages, prot)
+}
+
+/// madvise(2): accept-and-ignore — MOS has no page cache or swap, so all
+/// advice is trivially satisfied.
+pub fn sys_madvise(_addr: u64, _len: u64, _advice: u64) -> KResult<()> {
+    Ok(())
 }

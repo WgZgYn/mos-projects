@@ -1,7 +1,8 @@
 #![no_std]
 #![no_main]
 
-use user_lib::fs::{OpenFlags, VfsError};
+use user_lib::fs::VfsError;
+use user_lib::mos::fs::{O_RDONLY, O_WRONLY};
 use user_lib::{exit, fork, mkfifo, open, println, read, write};
 
 #[unsafe(no_mangle)]
@@ -27,7 +28,7 @@ fn main() -> i32 {
     }
     if pid == 0 {
         println!("ready to open read fifo");
-        let fifo = open(c"/fifo", OpenFlags::READ).expect("should open read fifo");
+        let fifo = open(c"/fifo", O_RDONLY).expect("should open read fifo");
         let mut buffer = [0; 32];
         let n = read(fifo, &mut buffer).expect("read from pipe");
         println!(
@@ -38,7 +39,7 @@ fn main() -> i32 {
         exit(0);
     } else {
         println!("ready to open write fifo");
-        let fifo = open(c"/fifo", OpenFlags::WRITE).expect("should open write fifo");
+        let fifo = open(c"/fifo", O_WRONLY).expect("should open write fifo");
         println!("open fifo ok, ready to write fifo");
         write(fifo, b"message from fifo writer\n").expect("write to pipe");
     }

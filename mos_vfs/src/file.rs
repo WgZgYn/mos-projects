@@ -65,7 +65,7 @@ impl File {
         *self.offset.lock() += n as u64;
         Ok(n)
     }
-    pub fn set_offset(&mut self, offset: u64) {
+    pub fn set_offset(&self, offset: u64) {
         *self.offset.lock() = offset;
     }
     pub fn get_offset(&self) -> u64 {

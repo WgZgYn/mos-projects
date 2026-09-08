@@ -55,7 +55,7 @@ fn main() -> i32 {
             None,
             0,
         );
-        if stack == u64::MAX {
+        if (stack as i64) < 0 {
             println!("FAIL: mmap stack for worker {}", i);
             return -1;
         }

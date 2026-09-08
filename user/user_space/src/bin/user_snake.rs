@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_lib::fs::OpenFlags;
+use user_lib::mos::fs::{O_NONBLOCK, O_RDONLY};
 use user_lib::mos::fs::FileDesc;
 use user_lib::{clock_us, create_window, destroy_window, exit, open, rand, read,
                window_mark_dirty, window_sync};
@@ -197,7 +197,7 @@ fn fill_cell(buf: &mut [RGBA], pitch: usize, cx: usize, cy: usize, color: RGBA) 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
     // 打开非阻塞 tty 用于键盘输入
-    let tty = match open(c"/dev/tty", OpenFlags::READ | OpenFlags::NONBLOCK) {
+    let tty = match open(c"/dev/tty", O_RDONLY | O_NONBLOCK) {
         Some(fd) => fd,
         None => return -1,
     };

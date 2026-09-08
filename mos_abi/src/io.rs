@@ -11,6 +11,14 @@ use core::ops::Deref;
 use log::info;
 use string_num::string_enum;
 
+/// struct iovec — identical layout to Linux x86_64 (readv/writev).
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Iovec {
+    pub iov_base: u64,
+    pub iov_len: u64,
+}
+
 string_enum! {
     #[derive(Debug)]
     pub enum IOErrorEnum {

@@ -20,6 +20,7 @@ use mos_arch::asm::__switch_context;
 use mos_arch::percpu::{current_raw, current_raw_mut, try_current_raw};
 use mos_arch::sync::{SpinIrqLock, SpinIrqLockGuard};
 use mos_lib::sync::{KRef, KWake};
+use x86_64::VirtAddr;
 use x86_64::structures::idt::InterruptStackFrame;
 
 type ScheduleStrategyImpl = hybrid::HybridSchedStrategy<cfs::CfsScheduleStrategy>;
@@ -123,6 +124,11 @@ impl<S: SchedStrategy> Scheduler<S> {
         unsafe {
             __switch_context(old_ctx, new_ctx);
         }
+        // Execution resumes here on the incoming thread's kernel stack: its
+        // copy of `new_ctx` points at its own ThreadContext, so this loads
+        // the user FS base (TLS) of the thread being switched in.
+        let fs_base = unsafe { (*new_ctx).fs_base };
+        x86_64::registers::model_specific::FsBase::write(VirtAddr::new(fs_base));
     }
 }
 

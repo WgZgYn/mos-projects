@@ -72,6 +72,9 @@ pub struct ThreadContext {
     pub rsp: u64,
     pub rflags: u64,
     pub fpu: FpuState,
+    /// User FS base (x86-64 TLS). Restored from IA32_FS_BASE on context switch.
+    /// Not touched by the asm switch itself; written by arch_prctl(ARCH_SET_FS).
+    pub fs_base: u64,
 }
 
 const _: () = assert!(align_of::<FpuState>() == 16);

@@ -10,15 +10,30 @@ use crate::task::elf::load_elf;
 
 mod elf;
 
+/// Everything execve needs after loading an ELF: the entry point plus the
+/// program-header info for the auxv (AT_PHDR/AT_PHENT/AT_PHNUM).
+pub struct ExecLoadInfo {
+    pub entry: VirtAddr,
+    pub phdr: u64,
+    pub phent: usize,
+    pub phnum: usize,
+}
+
 pub fn load_elf_from_file(
     pcb: &KRef<ProcessControlBlock>,
     file: &File,
-) -> KResult<VirtAddr> {
+) -> KResult<ExecLoadInfo> {
     if !pcb.mem.is_userspace() {
         return Err(KError::Unsupported);
     }
     let (elf, _libs) = load_elf(&pcb.mem, file, true)?;
-    Ok(elf.entry())
+    let (phdr, phent, phnum) = elf.phdr_info();
+    Ok(ExecLoadInfo {
+        entry: elf.entry(),
+        phdr,
+        phent,
+        phnum,
+    })
 }
 
 pub fn pure_load_elf(

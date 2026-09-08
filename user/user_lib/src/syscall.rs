@@ -1,8 +1,9 @@
 use core::arch::asm;
 use core::ffi::{CStr, c_char};
 
+use mos_abi::fs::Stat;
 use mos_abi::syscall::Syscall;
-use vfs_common::UserDirEntry;
+use mos_abi::time::{Timespec, Timeval, Timezone};
 
 fn syscall(no: u64, args: [u64; 3]) -> u64 {
     let ret: u64;
@@ -63,6 +64,25 @@ pub fn sys_exit(code: u64) -> ! {
 pub fn sys_rand() -> u64 {
     syscall(Syscall::Rand as _, [0, 0, 0])
 }
+pub fn sys_getpid() -> u64 {
+    syscall(Syscall::GetPid as _, [0, 0, 0])
+}
+pub fn sys_getppid() -> u64 {
+    syscall(Syscall::GetPpid as _, [0, 0, 0])
+}
+pub fn sys_exit_group(code: u64) -> ! {
+    syscall(Syscall::ExitGroup as _, [code, 0, 0]);
+    unreachable!()
+}
+pub fn sys_set_tid_address(ptr: *mut u32) -> u64 {
+    syscall(Syscall::SetTidAddress as _, [ptr as u64, 0, 0])
+}
+pub fn sys_arch_prctl(code: u64, addr: u64) -> u64 {
+    syscall(Syscall::ArchPrctl as _, [code, addr, 0])
+}
+pub fn sys_uname(ptr: *mut u8) -> u64 {
+    syscall(Syscall::Uname as _, [ptr as u64, 0, 0])
+}
 
 pub fn sys_yield() -> u64 {
     syscall(Syscall::Yield as _, [0, 0, 0])
@@ -78,7 +98,15 @@ pub fn sys_execve(
     syscall(Syscall::Execve as _, [path as _, args as _, envp as _]) as _
 }
 pub fn sys_sleep(ms: u64) -> u64 {
-    syscall(Syscall::Sleep as _, [ms, 0, 0])
+    use mos_abi::time::Timespec;
+    let ts = Timespec {
+        tv_sec: (ms / 1000) as i64,
+        tv_nsec: ((ms % 1000) * 1_000_000) as i64,
+    };
+    syscall(
+        Syscall::Nanosleep as _,
+        [&ts as *const Timespec as u64, 0, 0],
+    )
 }
 pub fn sys_fork() -> u64 {
     syscall(Syscall::Fork as _, [0, 0, 0])
@@ -89,11 +117,26 @@ pub fn sys_brk(addr: u64) -> u64 {
 pub fn sys_wait(pid: u64) -> u64 {
     syscall(Syscall::Wait as _, [pid, 0, 0]) as _
 }
-pub fn sys_getdents(fd: u64, buf: &mut [UserDirEntry]) -> u64 {
+pub fn sys_getdents(fd: u64, buf: &mut [u8]) -> u64 {
     syscall(
-        Syscall::GetDents as _,
+        Syscall::GetDents64 as _,
         [fd, buf.as_mut_ptr() as _, buf.len() as u64],
     )
+}
+pub fn sys_lseek(fd: u64, offset: i64, whence: u32) -> isize {
+    syscall(Syscall::Lseek as _, [fd, offset as u64, whence as u64]) as _
+}
+pub fn sys_fstat(fd: u64, stat: *mut Stat) -> isize {
+    syscall(Syscall::Fstat as _, [fd, stat as u64, 0]) as _
+}
+pub fn sys_stat(path: *const c_char, stat: *mut Stat) -> isize {
+    syscall(Syscall::Stat as _, [path as u64, stat as u64, 0]) as _
+}
+pub fn sys_clock_gettime(clk_id: u32, tp: *mut Timespec) -> isize {
+    syscall(Syscall::ClockGetTime as _, [clk_id as u64, tp as u64, 0]) as _
+}
+pub fn sys_gettimeofday(tv: *mut Timeval, tz: *mut Timezone) -> isize {
+    syscall(Syscall::GetTimeOfDay as _, [tv as u64, tz as u64, 0]) as _
 }
 pub fn sys_chdir(fd: u64) -> u64 {
     syscall(Syscall::ChDir as _, [fd, 0, 0])
@@ -107,6 +150,12 @@ pub fn sys_mmap(start: u64, len: u64, prot: u32, flags: u32, fd: i32, offset: u6
 
 pub fn sys_munmap(start: u64, len: u64) -> u64 {
     syscall(Syscall::Munmap as _, [start, len, 0])
+}
+pub fn sys_mprotect(addr: u64, len: u64, prot: u32) -> isize {
+    syscall(Syscall::Mprotect as _, [addr, len, prot as u64]) as _
+}
+pub fn sys_madvise(addr: u64, len: u64, advice: u32) -> isize {
+    syscall(Syscall::Madvise as _, [addr, len, advice as u64]) as _
 }
 pub fn sys_pipe(addr: &mut [i32; 2]) -> i32 {
     syscall(Syscall::Pipe as _, [addr.as_mut_ptr() as _, 0, 0]) as _

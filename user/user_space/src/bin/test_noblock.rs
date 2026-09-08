@@ -1,13 +1,14 @@
 #![no_std]
 #![no_main]
 
-use user_lib::fs::{OpenFlags, VfsError};
+use user_lib::fs::VfsError;
+use user_lib::mos::fs::{O_NONBLOCK, O_RDONLY};
 use user_lib::{open, println, read, sleep};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
     println!("test nonblock");
-    let nonblock = open(c"/dev/tty", OpenFlags::READ | OpenFlags::NONBLOCK).expect("can't open");
+    let nonblock = open(c"/dev/tty", O_RDONLY | O_NONBLOCK).expect("can't open");
     let mut buffer = [0; 32];
     let n = read(nonblock, &mut buffer);
     println!("result: {:?}", n);

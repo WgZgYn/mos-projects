@@ -108,7 +108,7 @@ fn main() -> i32 {
                 MemoryProtFlags::READ_WRITE,
                 MemoryMapFlags::PRIVATE | MemoryMapFlags::ANONYMOUS,
                 None, 0);
-            if stack == u64::MAX { println!("mmap fail"); return -1; }
+            if (stack as i64) < 0 { println!("mmap fail"); return -1; }
             create_thread(worker_entry as _, (stack + STACK_SIZE) as _);
         }
 

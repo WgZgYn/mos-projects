@@ -22,6 +22,41 @@ pub enum KError {
     NoDevice = 40,
     Unsupported = 41,
     UnknownSyscall = 50,
+    BadFd = 42,
+    NoChild = 43,
+    NoExec = 44,
+}
+
+impl KError {
+    /// Linux x86_64 errno, so that a musl/glibc program can interpret the
+    /// negative return value of a failed syscall directly.
+    pub const fn to_errno(self) -> i64 {
+        match self {
+            Self::None => 0,
+            Self::InvalidArg => 22,       // EINVAL
+            Self::OutOfMem => 12,         // ENOMEM
+            Self::Overflow => 75,         // EOVERFLOW
+            Self::NotMapped => 12,        // ENOMEM
+            Self::AlreadyMapped => 17,    // EEXIST
+            Self::FrameAllocFailed => 12, // ENOMEM
+            Self::OutOfBounds => 14,      // EFAULT
+            Self::NoProcess => 3,         // ESRCH
+            Self::NoThread => 3,          // ESRCH
+            Self::StillRunning => 11,     // EAGAIN
+            Self::NoFile => 2,            // ENOENT
+            Self::NotDir => 20,           // ENOTDIR
+            Self::IsDir => 21,            // EISDIR
+            Self::NoPermission => 13,     // EACCES
+            Self::FileTooLarge => 27,     // EFBIG
+            Self::PipeClosed => 32,       // EPIPE
+            Self::NoDevice => 19,         // ENODEV
+            Self::Unsupported => 38,      // ENOSYS
+            Self::UnknownSyscall => 38,   // ENOSYS
+            Self::BadFd => 9,             // EBADF
+            Self::NoChild => 10,          // ECHILD
+            Self::NoExec => 8,            // ENOEXEC
+        }
+    }
 }
 
 pub type KResult<T> = Result<T, KError>;
@@ -49,6 +84,9 @@ impl KError {
             Self::NoDevice => "no such device",
             Self::Unsupported => "not supported",
             Self::UnknownSyscall => "unknown syscall",
+            Self::BadFd => "bad file descriptor",
+            Self::NoChild => "no child processes",
+            Self::NoExec => "exec format error",
         }
     }
 }

@@ -3,6 +3,7 @@ use crate::phys::PhysicalFrameManager;
 use crate::{PageTableManager, phys_to_virt, write_to_phys};
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::fmt::{Debug, Formatter};
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
@@ -339,6 +340,97 @@ impl MemoryAreas {
         }
     }
 
+    /// mprotect(2): change the protection of every page in [start, end).
+    /// Every page must already be covered by an area (ENOMEM otherwise);
+    /// partially covered areas are split so the invariant
+    /// "areas never overlap" is kept.
+    fn protect(
+        &mut self,
+        start: Page,
+        end: Page,
+        prot: MemoryProtFlags,
+        user_accessible: bool,
+    ) -> KResult<()> {
+        // validate coverage: walk the areas, jumping from one area end to
+        // the next, until the whole range is covered
+        let mut cursor = start;
+        while cursor < end {
+            match self.find_area(cursor) {
+                Some(area) => cursor = area.range.end,
+                None => return Err(KError::NotMapped), // ENOMEM
+            }
+        }
+
+        // collect the areas intersecting [start, end), from high key to low
+        let mut affected: Vec<(Page, MemoryArea)> = Vec::new();
+        let mut upper = end;
+        loop {
+            match self.areas.range(..upper).next_back() {
+                Some((&key, area)) if area.range.end > start => {
+                    affected.push((key, area.clone()));
+                    upper = key;
+                }
+                _ => break,
+            }
+        }
+
+        // replace each affected area with its unchanged head/tail plus a
+        // middle piece carrying the new protection
+        for (key, area) in affected {
+            self.areas.remove(&key);
+            let (area_start, area_end) = (area.range.start, area.range.end);
+            if area_start < start {
+                self.areas.insert(
+                    area_start,
+                    MemoryArea {
+                        range: PageRange {
+                            start: area_start,
+                            end: start,
+                        },
+                        ..area.clone()
+                    },
+                );
+            }
+            let mid_start = area_start.max(start);
+            let mid_end = area_end.min(end);
+            self.areas.insert(
+                mid_start,
+                MemoryArea {
+                    range: PageRange {
+                        start: mid_start,
+                        end: mid_end,
+                    },
+                    flags: MemoryFlags::new(prot, area.flags.map),
+                    backing: area.backing.clone(),
+                },
+            );
+            if mid_end < area_end {
+                self.areas.insert(
+                    mid_end,
+                    MemoryArea {
+                        range: PageRange {
+                            start: mid_end,
+                            end: area_end,
+                        },
+                        ..area.clone()
+                    },
+                );
+            }
+        }
+
+        // update page tables for pages already mapped; unmapped pages pick
+        // the new flags up when the fault handler maps them
+        let pte_flags = flags_prot_to_pte(prot, user_accessible);
+        for page in (PageRange { start, end }) {
+            if self.mapper.translate_page(page).is_ok() {
+                unsafe {
+                    let _ = self.mapper.update_flags(page, pte_flags);
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn check_overlap(&self, new_range: &PageRange) -> bool {
         if let Some((_, area)) = self.areas.range(..new_range.end).next_back() {
             new_range.start < area.end()
@@ -617,6 +709,16 @@ impl MemorySet {
 
     pub fn munmap(&self, start: Page, pages: u64) -> KResult<()> {
         self.addr_space.access(|mm| mm.munmap(start, pages))
+    }
+
+    /// mprotect(2)
+    pub fn protect(&self, start: Page, pages: u64, prot: MemoryProtFlags) -> KResult<()> {
+        let end = start + pages;
+        self.addr_space
+            .access(|mm| mm.protect(start, end, prot, self.is_user_space))?;
+        // changed PTEs may be cached in any core's TLB
+        x86_64::instructions::tlb::flush_all();
+        Ok(())
     }
 
     pub fn find_free_area(&self, pages: u64) -> Option<PageRange> {

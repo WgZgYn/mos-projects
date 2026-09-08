@@ -7,17 +7,19 @@ mod os;
 mod syscall;
 
 use crate::syscall::{
-    sys_brk, sys_chdir, sys_clock_freq, sys_clock_ticks, sys_close, sys_create_thread,
-    sys_create_window, sys_destroy_window, sys_dup, sys_dup2, sys_execve, sys_exit, sys_fork,
-    sys_getcpu, sys_getdents, sys_mkfifo, sys_mmap, sys_munmap, sys_open, sys_pipe, sys_rand,
-    sys_read, sys_sem_create, sys_sem_signal, sys_sem_wait, sys_sleep, sys_wait,
+    sys_brk, sys_chdir, sys_clock_freq, sys_clock_gettime, sys_clock_ticks, sys_close,
+    sys_create_thread, sys_create_window, sys_destroy_window, sys_dup, sys_dup2, sys_execve,
+    sys_exit, sys_fork, sys_fstat, sys_getcpu, sys_getdents, sys_gettimeofday, sys_lseek,
+    sys_madvise, sys_mkfifo, sys_mmap, sys_mprotect, sys_munmap, sys_open, sys_pipe, sys_rand,
+    sys_read, sys_sem_create, sys_sem_signal, sys_sem_wait, sys_sleep, sys_stat, sys_wait,
     sys_window_mark_dirty, sys_window_sync, sys_write, sys_yield,
 };
 use core::arch::global_asm;
 use core::ffi::{CStr, c_char};
-use mos_abi::fs::FileDesc;
+use mos_abi::fs::{FileDesc, Stat};
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
-use vfs_common::{OpenFlags, UserDirEntry, VfsResult, isize_to_vfs_result};
+use mos_abi::time::{Timespec, Timeval, Timezone};
+use vfs_common::{VfsResult, isize_to_vfs_result};
 
 #[cfg(feature = "alloc")]
 use linked_list_allocator::LockedHeap;
@@ -97,7 +99,7 @@ static HEAP: LockedHeap = LockedHeap::empty();
 pub fn init_heap() {
     let old_brk = brk(0);
     unsafe {
-        if brk(old_brk + 4096 * 32) == u64::MAX {
+        if is_err(brk(old_brk + 4096 * 32)) {
             // 128 KB
             panic!("failed to set heap brk");
         }
@@ -113,6 +115,11 @@ pub fn write(fd: FileDesc, buffer: &[u8]) -> VfsResult<usize> {
 }
 pub fn read(fd: FileDesc, buffer: &mut [u8]) -> VfsResult<usize> {
     isize_to_vfs_result(sys_read(fd.0 as _, buffer))
+}
+
+/// Linux errno convention: a negative rax means -errno.
+pub fn is_err(ret: u64) -> bool {
+    (ret as i64) < 0
 }
 
 pub fn get_char() -> u8 {
@@ -175,9 +182,10 @@ pub fn brk(addr: u64) -> u64 {
 pub fn waitpid(pid: u64) -> i32 {
     sys_wait(pid) as _
 }
-pub fn open(path: &CStr, flags: OpenFlags) -> Option<FileDesc> {
-    let fd = sys_open(path.as_ptr(), flags.bits());
-    if fd > 0 {
+/// open(2) with Linux O_* flags (see mos_abi::fs::O_*).
+pub fn open(path: &CStr, flags: u32) -> Option<FileDesc> {
+    let fd = sys_open(path.as_ptr(), flags);
+    if (fd as i64) >= 0 {
         Some(FileDesc(fd as _))
     } else {
         None
@@ -186,8 +194,31 @@ pub fn open(path: &CStr, flags: OpenFlags) -> Option<FileDesc> {
 pub fn close(fd: FileDesc) -> u64 {
     sys_close(fd.0 as _)
 }
-pub fn getdents(fd: FileDesc, buf: &mut [UserDirEntry]) -> u64 {
+/// getdents64(2): buf is filled with Linux dirent64 records (mos_abi::fs::Dirent64).
+pub fn getdents(fd: FileDesc, buf: &mut [u8]) -> u64 {
     sys_getdents(fd.0 as _, buf)
+}
+pub fn lseek(fd: FileDesc, offset: i64, whence: u32) -> isize {
+    sys_lseek(fd.0 as _, offset, whence)
+}
+pub fn fstat(fd: FileDesc, stat: &mut Stat) -> isize {
+    sys_fstat(fd.0 as _, stat as *mut Stat)
+}
+pub fn stat(path: &CStr, stat: &mut Stat) -> isize {
+    sys_stat(path.as_ptr(), stat as *mut Stat)
+}
+/// clock_gettime(2) convenience: returns the Timespec, or the kernel's
+/// errno as a negative value in tv_sec.
+pub fn clock_gettime(clk_id: u32) -> Timespec {
+    let mut ts = Timespec::default();
+    let ret = sys_clock_gettime(clk_id, &mut ts as *mut Timespec);
+    if ret != 0 {
+        ts.tv_sec = ret as i64;
+    }
+    ts
+}
+pub fn gettimeofday(tv: &mut Timeval, tz: &mut Timezone) -> isize {
+    sys_gettimeofday(tv as *mut Timeval, tz as *mut Timezone)
 }
 pub fn chdir(fd: FileDesc) -> u64 {
     sys_chdir(fd.0 as _)
@@ -212,6 +243,14 @@ pub fn mmap(
 
 pub fn munmap(addr: u64, len: u64) -> u64 {
     sys_munmap(addr, len)
+}
+
+pub fn mprotect(addr: u64, len: u64, prot: u32) -> isize {
+    sys_mprotect(addr, len, prot)
+}
+
+pub fn madvise(addr: u64, len: u64, advice: u32) -> isize {
+    sys_madvise(addr, len, advice)
 }
 
 pub struct Pipe {
@@ -292,7 +331,7 @@ pub struct WindowInfo {
 pub fn create_window(x: u64, y: u64, w: u64, h: u64) -> Option<WindowInfo> {
     let mut out = [0u64; 5];
     let ret = sys_create_window(x, y, w, h, out.as_mut_ptr());
-    if ret == u64::MAX {
+    if is_err(ret) {
         return None;
     }
     Some(WindowInfo {

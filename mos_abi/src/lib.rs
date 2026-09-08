@@ -10,3 +10,4 @@ pub mod io;
 pub mod memory;
 pub mod stack;
 pub mod syscall;
+pub mod time;

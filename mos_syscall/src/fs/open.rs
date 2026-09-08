@@ -1,8 +1,39 @@
 use mos_abi::ffi::c_str_to_str;
-use mos_abi::fs::FileDesc;
+use mos_abi::fs::{
+    FileDesc, O_APPEND, O_CREAT, O_DIRECTORY, O_NONBLOCK, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY,
+};
 use mos_arch::structs::SyscallContext;
 use mos_task::current_tcb;
 use vfs_common::{OpenFlags, VfsError, VfsResult, vfs_result_to_isize};
+
+/// Translate Linux O_* bits (as passed by musl/glibc) to the kernel's
+/// internal OpenFlags.
+pub fn linux_to_open_flags(flags: u32) -> OpenFlags {
+    let mut f = OpenFlags::empty();
+    match flags & 3 {
+        O_RDONLY => f.insert(OpenFlags::READ),
+        O_WRONLY => f.insert(OpenFlags::WRITE),
+        _ => f.insert(OpenFlags::READ_WRITE),
+    }
+    if flags & O_CREAT != 0 {
+        f.insert(OpenFlags::CREATE);
+    }
+    if flags & O_TRUNC != 0 {
+        f.insert(OpenFlags::TRUNC);
+    }
+    if flags & O_APPEND != 0 {
+        f.insert(OpenFlags::APPEND);
+    }
+    if flags & O_NONBLOCK != 0 {
+        f.insert(OpenFlags::NONBLOCK);
+    }
+    if flags & O_DIRECTORY != 0 {
+        f.insert(OpenFlags::DIRECTORY);
+    }
+    // O_EXCL is meaningless without O_CREAT; the VFS create path rejects
+    // already-existing names anyway
+    f
+}
 
 pub fn raw_sys_open(context: &mut SyscallContext, args: [u64; 6]) {
     let arg0_user_path_ptr = args[0];
@@ -13,7 +44,7 @@ pub fn raw_sys_open(context: &mut SyscallContext, args: [u64; 6]) {
         context.scratch.rax = vfs_result_to_isize(Err(VfsError::FileNameIllegal)) as _;
         return;
     };
-    let flags = OpenFlags::from_bits_truncate(arg1_open_flags as _);
+    let flags = linux_to_open_flags(arg1_open_flags as _);
     let ret = sys_open(path, flags);
     context.scratch.rax = vfs_result_to_isize(ret.map(|fd| fd.0)) as _;
 }

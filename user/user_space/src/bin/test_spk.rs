@@ -2,14 +2,14 @@
 #![no_main]
 
 use note::{Note, Speaker};
-use user_lib::fs::OpenFlags;
+use user_lib::mos::fs::O_WRONLY;
 use user_lib::mos::fs::FileDesc;
 use user_lib::{open, println, sleep, write};
 
 #[unsafe(no_mangle)]
 fn main() -> i32 {
     println!("[TEST_SPK] start");
-    let spk = open(c"/dev/spk", OpenFlags::WRITE).expect("failed to open spk");
+    let spk = open(c"/dev/spk", O_WRONLY).expect("failed to open spk");
     const AUDIO: &[Note] = &note::embed::MY_GO;
     struct PcSpeakerBlock(FileDesc);
     impl Speaker for PcSpeakerBlock {

@@ -7,7 +7,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
-use core::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize};
+use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
 use lazy_static::lazy_static;
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
@@ -133,6 +133,9 @@ pub struct ProcessControlBlock {
     /// unique process id
     pub pid: Pid,
 
+    /// pid of the parent process; 0 for the init process
+    pub ppid: AtomicU64,
+
     /// determine the process running ring level
     pub context: CpuContext,
 
@@ -182,6 +185,7 @@ impl ProcessControlBlock {
         let mut guard = PCB_SLAB.lock();
         let pcb = guard.insert_with_key(|key| Self {
             pid: Pid(key as _),
+            ppid: AtomicU64::new(0),
             mem: MemorySet::new(page_table, user_space),
             threads: Mutex::new(Vec::new()),
             context,
@@ -266,6 +270,9 @@ impl ProcessControlBlock {
     pub fn fork(&self) -> KResult<KRef<ProcessControlBlock>> {
         let is_user = self.mem.is_userspace();
         let new_process = ProcessControlBlock::new_empty(is_user, true)?;
+        new_process
+            .ppid
+            .store(self.pid.as_u64(), Ordering::Release);
 
         // copy the open files and cwd
         *new_process.files.lock() = self.files.lock().clone();

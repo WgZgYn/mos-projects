@@ -157,6 +157,10 @@ pub struct ThreadControlBlock {
     /// used for priority-driven schedule
     pub priority: Priority,
 
+    /// address passed to set_tid_address(2); on exit the kernel clears the
+    /// futex there and wakes waiters (futex part lands with phase 3)
+    clear_child_tid: AtomicU64,
+
     /// used for cfs schedule
     vruntime: VRunTime,
     pub(crate) node: RBTreeLink,
@@ -205,6 +209,7 @@ impl ThreadControlBlock {
                 kstack,
                 need_sched: AtomicBool::new(false),
                 priority,
+                clear_child_tid: AtomicU64::new(0),
                 vruntime: VRunTime(AtomicU64::new(1024)),
                 node: RBTreeLink::new(),
                 refcount: AtomicUsize::new(1),
@@ -247,6 +252,19 @@ impl ThreadControlBlock {
     }
     pub fn kernel_stack_top(&self) -> VirtAddr {
         self.kstack.top()
+    }
+    pub fn set_clear_child_tid(&self, addr: u64) {
+        self.clear_child_tid.store(addr, Ordering::Release);
+    }
+    pub fn clear_child_tid(&self) -> u64 {
+        self.clear_child_tid.load(Ordering::Acquire)
+    }
+    /// Store the user FS base for this thread (called by arch_prctl).
+    pub fn set_fs_base(&self, base: u64) {
+        unsafe { (*self.context.get()).fs_base = base };
+    }
+    pub fn fs_base(&self) -> u64 {
+        unsafe { (*self.context.get()).fs_base }
     }
     pub fn init_fpu_state(&self) {
         unsafe {

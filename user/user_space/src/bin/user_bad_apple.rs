@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use user_lib::fs::OpenFlags;
+use user_lib::mos::fs::O_RDONLY;
 use user_lib::{clock_us, create_window, exit, open, read, sleep, window_mark_dirty, window_sync};
 
 type RGBA = [u8; 4];
@@ -26,7 +26,7 @@ fn main() -> i32 {
         core::slice::from_raw_parts_mut(info.pixels_ptr as *mut RGBA, pitch * VIDEO_HEIGHT)
     };
 
-    let fd = match open(c"/dev/embedding", OpenFlags::READ) {
+    let fd = match open(c"/dev/embedding", O_RDONLY) {
         Some(fd) => fd,
         None => return -1,
     };

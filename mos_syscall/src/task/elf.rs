@@ -52,6 +52,13 @@ pub struct LoadedElf {
     base: Page,
     entry: VirtAddr,
 
+    /// Program-header table: virtual address + entry size + entry count.
+    /// Needed to fill AT_PHDR/AT_PHENT/AT_PHNUM (static musl uses AT_PHDR
+    /// to locate its TLS initialization image).
+    phdr: VirtAddr,
+    phent: usize,
+    phnum: usize,
+
     symbols: Symbols,
 
     rela: Vec<Reloc>,
@@ -63,6 +70,10 @@ pub struct LoadedElf {
 impl LoadedElf {
     pub fn entry(&self) -> VirtAddr {
         self.entry + self.base.start_address().as_u64()
+    }
+
+    pub fn phdr_info(&self) -> (u64, usize, usize) {
+        (self.phdr.as_u64(), self.phent, self.phnum)
     }
 }
 
@@ -191,6 +202,19 @@ fn load_elf_with_lib_loader<'a>(
             BackingStore::File(MapFile::new(elf_file.inode().clone(), aligned_offset)),
         )?;
 
+        // Linux padzero: zero-fill the tail of the last file page beyond
+        // p_filesz, otherwise .bss-like content would read raw file data.
+        // Only for writable segments (text segments stay read-only).
+        if prot.contains(MemoryProtFlags::WRITE) {
+            let filesz_end = ph.p_vaddr + ph.p_filesz;
+            let file_pages_end = fend_page_e.start_address().as_u64();
+            if filesz_end < file_pages_end {
+                let tail_addr = (page_bias << 12) + filesz_end;
+                let tail_len = (file_pages_end - filesz_end) as usize;
+                unsafe { core::ptr::write_bytes(tail_addr as *mut u8, 0, tail_len) };
+            }
+        }
+
         // mmap the bss with anonymous backing
         if mend_page_e > fend_page_e {
             mem.mmap(
@@ -207,10 +231,33 @@ fn load_elf_with_lib_loader<'a>(
 
     let symbols = parse_symbol(&elf)?;
 
+    // e_phoff is a FILE offset: the runtime address of the phdr table is
+    // load_addr_of_segment + (e_phoff - segment_file_offset). With is_fixed
+    // the segment maps at its natural p_vaddr (page_bias == 0).
+    let e_phoff = elf.header.e_phoff;
+    let phdr = elf
+        .program_headers
+        .iter()
+        .find(|ph| {
+            ph.p_type == goblin::elf::program_header::PT_LOAD
+                && ph.p_offset <= e_phoff
+                && e_phoff < ph.p_offset + ph.p_filesz
+        })
+        .or_else(|| {
+            elf.program_headers
+                .iter()
+                .find(|ph| ph.p_type == goblin::elf::program_header::PT_LOAD)
+        })
+        .map(|ph| (page_bias << 12) + ph.p_vaddr + (e_phoff - ph.p_offset))
+        .unwrap_or(page_bias << 12);
+
     let mut elf_info = LoadedElf {
         name: elf_file.dentry().name(),
         base: Page::containing_address(VirtAddr::new(page_bias << 12)),
         entry: VirtAddr::new((page_bias << 12) + elf.entry),
+        phdr: VirtAddr::new(phdr),
+        phent: elf.header.e_phentsize as usize,
+        phnum: elf.header.e_phnum as usize,
         symbols,
         rela: elf.dynrelas.to_vec(),
         plt_rela: elf.pltrelocs.to_vec(),

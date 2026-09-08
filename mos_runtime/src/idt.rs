@@ -58,7 +58,13 @@ pub fn install_handlers() {
 }
 
 /// Safety: because the user thread is panic, the context is on longer being used, it's safe to iretq
-fn user_space_panic_handler(_stack_frame: InterruptStackFrame) -> ! {
+fn user_space_panic_handler(stack_frame: InterruptStackFrame) -> ! {
+    serial_println!(
+        "[user-panic] rip={:#x} rsp={:#x} cs={:?}",
+        stack_frame.instruction_pointer,
+        stack_frame.stack_pointer,
+        stack_frame.code_segment
+    );
     sys_exit(-1)
 }
 
@@ -145,6 +151,12 @@ extern "x86-interrupt" fn page_fault_handler(
     let handler_result = page_fault_helper(error_code, addr, current_tcb.clone());
 
     if let Err(e) = handler_result {
+        serial_println!(
+            "[PF] unrecoverable page fault ({}) at addr={:?} rip={:#x}",
+            e,
+            Cr2::read(),
+            stack_frame.instruction_pointer
+        );
         info!("[PF] unrecoverable page fault ({})", e);
         info!("dump stack backtrace:");
         try_dump(stack_frame.stack_pointer.as_u64(), 10);

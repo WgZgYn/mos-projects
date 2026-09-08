@@ -21,7 +21,7 @@ fn main() -> i32 {
         None,
         0,
     );
-    if start == u64::MAX {
+    if (start as i64) < 0 {
         println!("[USER] test_thread_sys failed to mmap stack space");
         return -1;
     }

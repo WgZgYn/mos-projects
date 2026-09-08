@@ -22,7 +22,7 @@ pub fn sys_create_window(context: &mut SyscallContext, args: [u64; 6]) {
     let out_ptr = args[4] as *mut u64;
 
     if w == 0 || h == 0 || out_ptr.is_null() {
-        context.scratch.rax = u64::MAX;
+        crate::ret_err(context, KError::InvalidArg);
         return;
     }
 
@@ -30,7 +30,7 @@ pub fn sys_create_window(context: &mut SyscallContext, args: [u64; 6]) {
     let npages = (align_up(pixel_bytes as u64, 4096) / 4096) as usize;
 
     let Some(frames) = PhysicalFrameManager.global_allocate_frames(npages) else {
-        context.scratch.rax = u64::MAX;
+        crate::ret_err(context, KError::OutOfMem);
         return;
     };
     let phys_start = frames.start.start_address();
@@ -41,7 +41,7 @@ pub fn sys_create_window(context: &mut SyscallContext, args: [u64; 6]) {
     let tcb = current_tcb();
     let pid = tcb.process.pid;
     let Some(user_range) = tcb.process.mem.find_free_area(npages as u64) else {
-        context.scratch.rax = u64::MAX;
+        crate::ret_err(context, KError::OutOfMem);
         return;
     };
     let user_va = user_range.start.start_address().as_u64();
@@ -50,7 +50,7 @@ pub fn sys_create_window(context: &mut SyscallContext, args: [u64; 6]) {
     if tcb.process.mem.addr_space.access(|mm| {
         mm.try_add_area(MemoryArea::new_anon(user_range, mem_flags))
     }).is_err() {
-        context.scratch.rax = u64::MAX;
+        crate::ret_err(context, KError::InvalidArg);
         return;
     }
 
@@ -66,7 +66,7 @@ pub fn sys_create_window(context: &mut SyscallContext, args: [u64; 6]) {
         Ok::<_, KError>(())
     });
     if map_result.is_err() {
-        context.scratch.rax = u64::MAX;
+        crate::ret_err(context, KError::InvalidArg);
         return;
     }
 

@@ -106,14 +106,47 @@ impl IoContext {
     }
 }
 
-fn vfs_error_to_usize(ret: VfsError) -> usize {
-    let ret = ret as usize;
-    assert_ne!(ret, 0);
-    ret
+/// Map a VFS error to the Linux x86_64 errno, so negative syscall returns
+/// are meaningful to musl/glibc callers.
+pub fn vfs_error_to_errno(ret: VfsError) -> i64 {
+    match ret {
+        VfsError::NotFound => 2,           // ENOENT
+        VfsError::NotDir => 20,            // ENOTDIR
+        VfsError::NotFile => 21,           // EISDIR
+        VfsError::NotStream => 29,         // ESPIPE
+        VfsError::NoSpace => 28,           // ENOSPC
+        VfsError::PermissionDenied => 13,  // EACCES
+        VfsError::IoError => 5,            // EIO
+        VfsError::AlreadyExists => 17,     // EEXIST
+        VfsError::FileNameIllegal => 22,   // EINVAL
+        VfsError::NotOpen => 9,            // EBADF
+        VfsError::BadFileDesc => 9,        // EBADF
+        VfsError::NotSupported => 38,      // ENOSYS
+        VfsError::BrokenPipe => 32,        // EPIPE
+        VfsError::WouldBlock => 11,        // EAGAIN
+        VfsError::Pendding => 11,          // EAGAIN
+        VfsError::InternelError => 5,      // EIO
+        VfsError::Unknown => 5,            // EIO
+    }
 }
 
-fn usize_to_vfs_error(ret: usize) -> Option<VfsError> {
-    VfsError::try_from_primitive(ret).ok()
+fn errno_to_vfs_error(errno: i64) -> Option<VfsError> {
+    Some(match errno {
+        2 => VfsError::NotFound,
+        20 => VfsError::NotDir,
+        21 => VfsError::NotFile,
+        29 => VfsError::NotStream,
+        28 => VfsError::NoSpace,
+        13 => VfsError::PermissionDenied,
+        5 => VfsError::IoError,
+        17 => VfsError::AlreadyExists,
+        22 => VfsError::FileNameIllegal,
+        9 => VfsError::BadFileDesc,
+        38 => VfsError::NotSupported,
+        32 => VfsError::BrokenPipe,
+        11 => VfsError::WouldBlock,
+        _ => return None,
+    })
 }
 
 pub fn vfs_result_to_isize(ret: VfsResult<usize>) -> isize {
@@ -123,10 +156,7 @@ pub fn vfs_result_to_isize(ret: VfsResult<usize>) -> isize {
             assert!(!ret.is_negative());
             ret
         }
-        Err(err) => {
-            let ret = vfs_error_to_usize(err);
-            -(ret as isize)
-        }
+        Err(err) => -vfs_error_to_errno(err) as isize,
     }
 }
 
@@ -135,18 +165,19 @@ pub fn isize_to_vfs_result(ret: isize) -> VfsResult<usize> {
     if !ret.is_negative() {
         Ok(ret as _)
     } else {
-        Err(usize_to_vfs_error((-ret) as _).unwrap_or(VfsError::Unknown))
+        Err(errno_to_vfs_error(-(ret as i64)).unwrap_or(VfsError::Unknown))
     }
 }
 
 mod tests {
 
     #[test]
-    fn test_vfs_error_to_usize() {
-        use crate::VfsError;
+    fn test_vfs_errno_roundtrip() {
+        use crate::{VfsError, vfs_error_to_errno};
         let all = VfsError::all_variants();
-        for i in 0..all.len() {
-            assert_eq!(all[i] as usize, i + 1);
+        for err in all {
+            let errno = vfs_error_to_errno(err);
+            assert!(errno > 0 && errno < 4096, "errno out of range: {}", errno);
         }
     }
 }

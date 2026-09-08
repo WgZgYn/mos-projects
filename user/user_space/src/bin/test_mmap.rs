@@ -1,14 +1,14 @@
 #![no_std]
 #![no_main]
 
-use user_lib::fs::OpenFlags;
+use user_lib::mos::fs::{O_APPEND, O_CREAT, O_RDWR};
 use user_lib::mos::memory::*;
 use user_lib::{exit, mmap, open, println, write};
 #[unsafe(no_mangle)]
 fn main() -> i32 {
     let f = open(
         c"mmap.txt",
-        OpenFlags::READ_WRITE | OpenFlags::CREATE | OpenFlags::APPEND,
+        O_RDWR | O_CREAT | O_APPEND,
     )
     .expect("should open or create mmap.txt");
     write(f, b"hello world!\n").expect("should write file");
@@ -23,7 +23,7 @@ fn main() -> i32 {
     );
 
     println!("fmap: {:X?}", fmap);
-    if fmap == u64::MAX {
+    if (fmap as i64) < 0 {
         exit(-1);
     }
 
@@ -43,7 +43,7 @@ fn main() -> i32 {
 
     println!("ret: {:X?}", ret);
 
-    if ret == u64::MAX {
+    if (ret as i64) < 0 {
         println!("mmap failed");
         exit(-1);
     }
