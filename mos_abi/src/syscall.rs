@@ -35,6 +35,7 @@ pub enum Syscall {
     Dup = 32,
     DupTo = 33,
     Fcntl = 72,
+    Ioctl = 16,
     Dup3 = 292,
 
     // Time

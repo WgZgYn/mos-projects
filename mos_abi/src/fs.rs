@@ -78,4 +78,39 @@ pub const O_EXCL: u32 = 0x80;
 pub const O_TRUNC: u32 = 0x200;
 pub const O_APPEND: u32 = 0x400;
 pub const O_NONBLOCK: u32 = 0x800;
+
+// ---- termios / ioctl ----
+
+/// Linux struct termios (x86_64, glibc/musl layout: 36 bytes, no padding)
+#[repr(C)]
+#[derive(Default, Clone, Copy, Debug)]
+pub struct Termios {
+    pub c_iflag: u32,
+    pub c_oflag: u32,
+    pub c_cflag: u32,
+    pub c_lflag: u32,
+    pub c_line: u8,
+    pub c_cc: [u8; 19],
+}
+
+/// Linux struct winsize
+#[repr(C)]
+#[derive(Default, Clone, Copy, Debug)]
+pub struct Winsize {
+    pub ws_row: u16,
+    pub ws_col: u16,
+    pub ws_xpixel: u16,
+    pub ws_ypixel: u16,
+}
+
+// ioctl request numbers (x86_64)
+pub const TCGETS: u32 = 0x5401;
+pub const TCSETS: u32 = 0x5402;
+pub const TIOCGWINSZ: u32 = 0x5413;
+
+// termios flags: canonical input with echo + signals, matching a normal tty
+pub const TTY_IFLAG: u32 = 0x2501; // ICRNL | IXON
+pub const TTY_OFLAG: u32 = 0x5; // OPOST | ONLCR
+pub const TTY_CFLAG: u32 = 0xbf; // B38400 | CS8 | CREAD
+pub const TTY_LFLAG: u32 = 0x8a3b; // ISIG | ICANON | ECHO | ECHOE | ECHOK | IEXTEN
 pub const O_DIRECTORY: u32 = 0x10000;

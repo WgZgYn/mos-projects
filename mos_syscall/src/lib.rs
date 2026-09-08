@@ -4,11 +4,11 @@ extern crate alloc;
 
 use crate::fs::{
     raw_sys_access, raw_sys_chmod, raw_sys_close, raw_sys_dup3, raw_sys_faccessat,
-    raw_sys_fchmod, raw_sys_fcntl, raw_sys_fstat, raw_sys_ftruncate, raw_sys_link, raw_sys_lseek,
-    raw_sys_mkdir, raw_sys_mkfifo, raw_sys_open, raw_sys_pipe, raw_sys_read, raw_sys_readlink,
-    raw_sys_readv, raw_sys_rename, raw_sys_rmdir, raw_sys_stat, raw_sys_symlink,
-    raw_sys_truncate, raw_sys_umask, raw_sys_unlink, raw_sys_write, raw_sys_writev, sys_chdir,
-    sys_getdents,
+    raw_sys_fchmod, raw_sys_fcntl, raw_sys_fstat, raw_sys_ftruncate, raw_sys_ioctl,
+    raw_sys_link, raw_sys_lseek, raw_sys_mkdir, raw_sys_mkfifo, raw_sys_open, raw_sys_pipe,
+    raw_sys_read, raw_sys_readlink, raw_sys_readv, raw_sys_rename, raw_sys_rmdir, raw_sys_stat,
+    raw_sys_symlink, raw_sys_truncate, raw_sys_umask, raw_sys_unlink, raw_sys_write,
+    raw_sys_writev, sys_chdir, sys_getdents,
 };
 use crate::mem::{sys_madvise, sys_mmap, sys_mprotect, sys_munmap};
 use crate::process::{
@@ -236,6 +236,7 @@ pub fn syscall(context: &mut SyscallContext) {
             }
         }
         Syscall::Fcntl => raw_sys_fcntl(context, args),
+        Syscall::Ioctl => raw_sys_ioctl(context, args),
         Syscall::Dup3 => raw_sys_dup3(context, args),
 
         Syscall::CreateSemaphore => {

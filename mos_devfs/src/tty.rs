@@ -77,6 +77,42 @@ impl Inode for TtyInode {
     fn as_file_ops(&self) -> VfsResult<&dyn FileOps> {
         Ok(self)
     }
+    fn ioctl(&self, cmd: u32, arg: u64) -> VfsResult<usize> {
+        use mos_abi::fs::{
+            TCGETS, TCSETS, TIOCGWINSZ, TTY_CFLAG, TTY_IFLAG, TTY_LFLAG, TTY_OFLAG, Termios,
+            Winsize,
+        };
+        if arg == 0 {
+            return Err(VfsError::FileNameIllegal);
+        }
+        match cmd {
+            TCGETS => {
+                // report a normal canonical tty so isatty() succeeds
+                let termios = Termios {
+                    c_iflag: TTY_IFLAG,
+                    c_oflag: TTY_OFLAG,
+                    c_cflag: TTY_CFLAG,
+                    c_lflag: TTY_LFLAG,
+                    c_line: 0,
+                    c_cc: [0; 19],
+                };
+                unsafe { core::ptr::write(arg as *mut Termios, termios) };
+                Ok(0)
+            }
+            TCSETS => Ok(0), // no actual termios state to change
+            TIOCGWINSZ => {
+                let ws = Winsize {
+                    ws_row: 25,
+                    ws_col: 80,
+                    ws_xpixel: 0,
+                    ws_ypixel: 0,
+                };
+                unsafe { core::ptr::write(arg as *mut Winsize, ws) };
+                Ok(0)
+            }
+            _ => Err(VfsError::NotSupported),
+        }
+    }
 }
 
 pub const STDIN: usize = 0;

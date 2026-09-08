@@ -1,6 +1,7 @@
 mod close;
 mod dir;
 mod fcntl;
+mod ioctl;
 mod iovec;
 mod lseek;
 mod mkfifo;
@@ -25,6 +26,7 @@ pub use dir::{
     raw_sys_truncate, raw_sys_umask, raw_sys_unlink,
 };
 pub use fcntl::{raw_sys_dup3, raw_sys_fcntl};
+pub use ioctl::raw_sys_ioctl;
 pub use iovec::{raw_sys_readv, raw_sys_writev};
 pub use lseek::raw_sys_lseek;
 pub use mkfifo::raw_sys_mkfifo;

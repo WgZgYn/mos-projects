@@ -49,6 +49,11 @@ pub trait Inode: Send + Sync {
     fn truncate(&self, _len: u64) -> VfsResult<()> {
         Err(VfsError::NotSupported)
     }
+    /// ioctl(2): device control. `arg` is a user-space pointer for the
+    /// requests that copy data (TCGETS/TIOCGWINSZ). Default: ENOSYS.
+    fn ioctl(&self, _cmd: u32, _arg: u64) -> VfsResult<usize> {
+        Err(VfsError::NotSupported)
+    }
 }
 
 pub trait FileOps: Send + Sync {

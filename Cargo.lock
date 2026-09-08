@@ -857,6 +857,7 @@ name = "mos_devfs"
 version = "0.1.0"
 dependencies = [
  "lazy_static",
+ "mos_abi",
  "mos_arch",
  "mos_driver",
  "mos_vfs",
