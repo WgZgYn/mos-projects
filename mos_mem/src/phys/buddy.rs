@@ -3,7 +3,7 @@ use crate::config::BUDDY_METADATA_HEAP_SIZE;
 use crate::heap::SpinIrqHeap;
 use crate::regions::UsableMemoryRegion;
 use buddy_allocator::FrameAllocator;
-use core::alloc::{AllocError, Allocator, Layout};
+use core::alloc::{AllocError, Allocator, AllocatorClone, Layout};
 use core::ops::Deref;
 use core::ptr::NonNull;
 use mos_arch::sync::SpinIrqLock;
@@ -86,6 +86,10 @@ impl Deref for BuddyBoostAllocator {
         &METADATA
     }
 }
+// SAFETY: the metadata heap is a global static and never invalidates memory
+// that it did not deallocate itself.
+unsafe impl AllocatorClone for BuddyBoostAllocator {}
+
 unsafe impl Allocator for BuddyBoostAllocator {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         if layout.size() == 0 {

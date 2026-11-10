@@ -11,7 +11,7 @@ use mos_arch::sync::SpinIrqLock;
 use mos_lib::utils::Defer;
 use vfs_traits::Inode;
 use x86_64::registers::control::{Cr3, Cr3Flags};
-use x86_64::structures::paging::mapper::TranslateError;
+use x86_64::structures::paging::mapper::{TranslateError, TranslateResult, MappedFrame};
 use x86_64::structures::paging::page::PageRange;
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::structures::paging::{
@@ -521,6 +521,18 @@ impl MemoryAreas {
         Ok(())
     }
 
+    /// Roll back an unpublished eager allocation. The caller must ensure no
+    /// other thread can access this range; each mapped leaf owns one frame ref.
+    pub fn rollback_eager_area(&mut self, start: Page, pages: usize) {
+        for page in Page::range(start, start + pages as u64) {
+            if let Ok((frame, flush)) = self.mapper.unmap(page) {
+                flush.flush();
+                PhysicalFrameManager.ref_dec(frame);
+            }
+        }
+        self.areas.remove(&start);
+    }
+
     pub fn try_add_area(&mut self, area: MemoryArea) -> KResult<()> {
         // check overlap
         if self.check_overlap(&area.range) {
@@ -536,6 +548,238 @@ impl MemoryAreas {
 }
 
 impl MemorySet {
+    pub fn user_executable(&self, address: u64) -> bool {
+        if !self.is_user_space || !mos_abi::signal_frame::user_address(address) { return false; }
+        self.addr_space.access(|mm| mm.find_area(Page::containing_address(VirtAddr::new(address)))
+            .is_some_and(|area| area.flags.prot.contains(MemoryProtFlags::EXEC)
+                && !matches!(area.backing, BackingStore::Device { .. })))
+    }
+
+    /// Read syscall arguments under the VMA lock through the physical mapping.
+    /// A never-touched anonymous page reads as zero without allocating a frame.
+    /// File-backed demand paging still needs the separate fault-in work item.
+    pub fn copy_from_user(&self, addr: u64, data: &mut [u8]) -> KResult<()> {
+        if data.is_empty() { return Ok(()); }
+        let end = addr.checked_add(data.len() as u64).ok_or(KError::OutOfBounds)?;
+        if !self.is_user_space || addr == 0 || end > 0x0000_8000_0000_0000 {
+            return Err(KError::OutOfBounds);
+        }
+        let first = Page::containing_address(VirtAddr::new(addr));
+        let last = Page::containing_address(VirtAddr::new(end - 1));
+        for page in Page::range_inclusive(first, last) {
+            self.prepare_copy_page(page, MemoryProtFlags::READ)?;
+        }
+        self.addr_space.access(|mm| {
+            let mut copied = 0;
+            while copied < data.len() {
+                let address = VirtAddr::new(addr + copied as u64);
+                let page = Page::containing_address(address);
+                let area = mm.find_area(page).ok_or(KError::OutOfBounds)?;
+                if !area.flags.prot.contains(MemoryProtFlags::READ)
+                    || matches!(area.backing, BackingStore::Device { .. }) {
+                    return Err(KError::OutOfBounds);
+                }
+                let length = (4096 - (address.as_u64() as usize & 4095)).min(data.len() - copied);
+                let output = &mut data[copied..copied + length];
+                match mm.mapper.translate(address) {
+                    TranslateResult::NotMapped if area.is_anonymous() => output.fill(0),
+                    TranslateResult::Mapped { frame: MappedFrame::Size4KiB(frame), offset, flags }
+                        if flags.contains(PageTableFlags::USER_ACCESSIBLE) => {
+                        // Only trusted kernel buffers reach this helper. Never
+                        // form a Rust reference to the untrusted user pointer.
+                        let physical = frame.start_address() + offset;
+                        unsafe {
+                            core::ptr::copy_nonoverlapping(
+                                phys_to_virt(physical).as_ptr::<u8>(), output.as_mut_ptr(), length);
+                        }
+                    }
+                    _ => return Err(KError::OutOfBounds),
+                }
+                copied += length;
+            }
+            Ok(())
+        })
+    }
+
+    /// Populate absent regular-file pages without sleeping under the VMA lock.
+    /// Fill before publishing the PTE, then revalidate the mapping snapshot.
+    fn prepare_copy_page(&self, page: Page, required: MemoryProtFlags) -> KResult<()> {
+        let snapshot = self.addr_space.access(|mm| {
+            let area = mm.find_area(page).ok_or(KError::OutOfBounds)?;
+            if !area.flags.prot.contains(required)
+                || matches!(area.backing, BackingStore::Device { .. }) {
+                return Err(KError::OutOfBounds);
+            }
+            Ok(if matches!(mm.mapper.translate(page.start_address()), TranslateResult::NotMapped)
+                && matches!(area.backing, BackingStore::File(_)) { Some(area.clone()) } else { None })
+        })?;
+        let Some(snapshot) = snapshot else { return Ok(()); };
+        let BackingStore::File(file) = &snapshot.backing else { unreachable!() };
+        let frame = PhysicalFrameManager.global_allocate_frame().ok_or(KError::OutOfMem)?;
+        let mut release = Defer::new(|| { PhysicalFrameManager.ref_dec(frame); });
+        // Fresh frame is exclusively owned until its PTE is published below.
+        let buffer = unsafe { core::slice::from_raw_parts_mut(
+            phys_to_virt(frame.start_address()).as_mut_ptr::<u8>(), 4096) };
+        let offset = file.offset.checked_add((page - snapshot.start()) * 4096)
+            .ok_or(KError::OutOfBounds)?;
+        let ops = file.inode.as_file_ops().map_err(|_| KError::OutOfBounds)?;
+        let mut filled = 0;
+        while filled < buffer.len() {
+            let position = offset.checked_add(filled as u64).ok_or(KError::OutOfBounds)?;
+            let n = ops.read(&IoContext::default(), position as usize, &mut buffer[filled..])
+                .map_err(|_| KError::OutOfBounds)?;
+            if n == 0 { break; }
+            filled += n;
+        }
+        buffer[filled..].fill(0);
+        let installed = self.addr_space.access(|mm| {
+            let area = mm.find_area(page).ok_or(KError::OutOfBounds)?;
+            let same_file = match &area.backing {
+                BackingStore::File(current) => Arc::ptr_eq(&current.inode, &file.inode)
+                    && current.offset == file.offset,
+                _ => false,
+            };
+            if !same_file || area.start() != snapshot.start() || area.end() != snapshot.end()
+                || area.flags.prot.bits() != snapshot.flags.prot.bits()
+                || area.flags.map.bits() != snapshot.flags.map.bits() {
+                return Err(KError::OutOfBounds);
+            }
+            if !matches!(mm.mapper.translate(page.start_address()), TranslateResult::NotMapped) {
+                return Ok(false); // Another fault won; release our unpublished frame.
+            }
+            let flags = flags_prot_to_pte(area.flags.prot, self.is_user_space);
+            unsafe { mm.mapper.map_to(page, frame, flags, &mut PhysicalFrameManager) }
+                .map_err(|_| KError::OutOfMem)?.flush();
+            Ok(true)
+        })?;
+        if installed { release.cancel(); }
+        Ok(())
+    }
+
+    /// Copy syscall output without ever dereferencing the supplied user address.
+    /// Validate VMAs and hold their lock through translation and physical copy,
+    /// preventing concurrent mprotect/munmap from invalidating that validation.
+    /// Anonymous demand pages and resident regular-file pages are supported;
+    /// nonresident file/device mappings require a separate fault-in path.
+    /// Preflight only; the actual copy validates again after any wait.
+    pub fn validate_user_write(&self, addr: u64, length: usize) -> KResult<()> {
+        if length == 0 { return Ok(()); }
+        let end = addr.checked_add(length as u64).ok_or(KError::OutOfBounds)?;
+        if !self.is_user_space || addr == 0 || end > 0x0000_8000_0000_0000 { return Err(KError::OutOfBounds); }
+        // File I/O may sleep. Prepare absent destination pages before callers
+        // enter a pipe/device's transactional copy callback under its lock.
+        for page in Page::range_inclusive(Page::containing_address(VirtAddr::new(addr)),
+            Page::containing_address(VirtAddr::new(end - 1))) {
+            self.prepare_copy_page(page, MemoryProtFlags::WRITE)?;
+        }
+        self.addr_space.access(|mm| {
+            for page in Page::range_inclusive(Page::containing_address(VirtAddr::new(addr)),
+                Page::containing_address(VirtAddr::new(end - 1))) {
+                let area = mm.find_area(page).ok_or(KError::OutOfBounds)?;
+                if !area.flags.prot.contains(MemoryProtFlags::WRITE)
+                    || matches!(area.backing, BackingStore::Device { .. }) { return Err(KError::OutOfBounds); }
+            }
+            Ok(())
+        })
+    }
+
+    pub fn copy_to_user(&self, addr: u64, data: &[u8]) -> KResult<()> {
+        if data.is_empty() {
+            return Ok(());
+        }
+        let end = addr.checked_add(data.len() as u64).ok_or(KError::OutOfBounds)?;
+        if !self.is_user_space || addr == 0 || end > 0x0000_8000_0000_0000 {
+            return Err(KError::OutOfBounds);
+        }
+        self.addr_space.access(|mm| {
+            let first = Page::containing_address(VirtAddr::new(addr));
+            let last = Page::containing_address(VirtAddr::new(end - 1));
+            // Validate the entire range before changing any output bytes.
+            for page in Page::range_inclusive(first, last) {
+                let area = mm.find_area(page).ok_or(KError::OutOfBounds)?;
+                if !area.flags.prot.contains(MemoryProtFlags::WRITE)
+                    || matches!(area.backing, BackingStore::Device { .. }) {
+                    return Err(KError::OutOfBounds);
+                }
+            }
+            for page in Page::range_inclusive(first, last) {
+                let address = page.start_address();
+                match mm.mapper.translate(address) {
+                    TranslateResult::NotMapped => {
+                        let area = mm.find_area(page).ok_or(KError::OutOfBounds)?;
+                        if !area.is_anonymous() {
+                            return Err(KError::OutOfBounds);
+                        }
+                        let flags = flags_prot_to_pte(area.flags.prot, true);
+                        let frame = PhysicalFrameManager.global_allocate_frame()
+                            .ok_or(KError::OutOfMem)?;
+                        match unsafe { mm.mapper.map_to(page, frame, flags, &mut PhysicalFrameManager) } {
+                            Ok(flush) => flush.flush(),
+                            Err(_) => {
+                                PhysicalFrameManager.ref_dec(frame);
+                                return Err(KError::OutOfMem);
+                            }
+                        }
+                    }
+                    TranslateResult::Mapped { frame: MappedFrame::Size4KiB(frame), flags, .. }
+                        if flags.contains(PageTableFlags::USER_ACCESSIBLE) => {
+                        // COW must be resolved before writing via the direct map;
+                        // bypassing the read-only PTE would otherwise corrupt the child.
+                        if flags.contains(PageTableFlags::BIT_9) {
+                            let writable = (flags - PageTableFlags::BIT_9) | PageTableFlags::WRITABLE;
+                            if PhysicalFrameManager.ref_get(frame) == 1 {
+                                unsafe { mm.mapper.update_flags(page, writable) }
+                                    .map_err(|_| KError::OutOfBounds)?.flush();
+                                continue;
+                            }
+                            let new_frame = PhysicalFrameManager.global_allocate_frame()
+                                .ok_or(KError::OutOfMem)?;
+                            unsafe {
+                                let source = core::slice::from_raw_parts(
+                                    phys_to_virt(frame.start_address()).as_ptr::<u8>(), 4096);
+                                write_to_phys(new_frame.start_address(), source);
+                            }
+                            let (_, flush) = match mm.mapper.unmap(page) {
+                                Ok(result) => result,
+                                Err(_) => {
+                                    PhysicalFrameManager.ref_dec(new_frame);
+                                    return Err(KError::OutOfBounds);
+                                }
+                            };
+                            flush.flush();
+                            // unmap retains intermediate tables, so remapping this
+                            // exact leaf does not need another page-table allocation.
+                            match unsafe { mm.mapper.map_to(page, new_frame, writable, &mut PhysicalFrameManager) } {
+                                Ok(flush) => flush.flush(),
+                                Err(_) => {
+                                    if let Ok(flush) = unsafe { mm.mapper.map_to(page, frame, flags, &mut PhysicalFrameManager) } {
+                                        flush.flush();
+                                    }
+                                    PhysicalFrameManager.ref_dec(new_frame);
+                                    return Err(KError::OutOfMem);
+                                }
+                            }
+                            PhysicalFrameManager.ref_dec(frame);
+                        } else if !flags.contains(PageTableFlags::WRITABLE) {
+                            return Err(KError::OutOfBounds);
+                        }
+                    }
+                    _ => return Err(KError::OutOfBounds),
+                }
+            }
+            let mut copied = 0;
+            while copied < data.len() {
+                let address = addr + copied as u64;
+                let length = (4096 - (address as usize & 4095)).min(data.len() - copied);
+                let physical = mm.mapper.translate_addr(VirtAddr::new(address))
+                    .ok_or(KError::OutOfBounds)?;
+                unsafe { write_to_phys(physical, &data[copied..copied + length]); }
+                copied += length;
+            }
+            Ok(())
+        })
+    }
+
     pub fn new(
         (page_table_root, mapper): (PhysFrame, OffsetPageTable<'static>),
         is_user_space: bool,
@@ -650,8 +894,11 @@ impl MemorySet {
 
         // walk the page table
         PageTableManager::user_page_table_walk(self.page_table_root, |page, frame, flags| {
-            // if writable, make it cow, else make it directly share with ref_inc
-            if flags.contains(PageTableFlags::WRITABLE) {
+            // Shared display buffers must keep the same physical backing when
+            // their owner forks. Private writable mappings still become COW.
+            let shared = self.addr_space.access(|mm| mm.find_area(page)
+                .is_some_and(|area| area.flags.map.contains(MemoryMapFlags::SHARED)));
+            if flags.contains(PageTableFlags::WRITABLE) && !shared {
                 let mut cow_flags = flags;
                 cow_flags.remove(PageTableFlags::WRITABLE);
                 cow_flags.insert(PageTableFlags::BIT_9);

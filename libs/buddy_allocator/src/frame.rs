@@ -6,6 +6,7 @@ use core::ops::Range;
 
 use alloc::alloc::Allocator;
 use alloc::alloc::Global;
+use core::alloc::AllocatorClone;
 
 #[cfg(feature = "use_spin")]
 use core::ops::Deref;
@@ -32,7 +33,7 @@ use spin::Mutex;
 /// let num = frame.alloc(2);
 /// assert_eq!(num, Some(0));
 /// ```
-pub struct FrameAllocator<const ORDER: usize = 32, A: Allocator + Clone = Global> {
+pub struct FrameAllocator<const ORDER: usize = 32, A: AllocatorClone = Global> {
     // buddy system with max order of ORDER
     free_list: [BTreeSet<usize, A>; ORDER],
 
@@ -41,7 +42,7 @@ pub struct FrameAllocator<const ORDER: usize = 32, A: Allocator + Clone = Global
     total: usize,
 }
 
-impl<const ORDER: usize, A: Allocator + Clone> FrameAllocator<ORDER, A> {
+impl<const ORDER: usize, A: AllocatorClone> FrameAllocator<ORDER, A> {
     pub fn new_in(alloc: A) -> Self {
         let free_list = core::array::repeat(BTreeSet::new_in(alloc));
         Self {
@@ -69,7 +70,7 @@ impl<const ORDER: usize> FrameAllocator<ORDER> {
     }
 }
 
-impl<const ORDER: usize, A: Allocator + Clone> FrameAllocator<ORDER, A> {
+impl<const ORDER: usize, A: AllocatorClone> FrameAllocator<ORDER, A> {
     /// Add a range of frame number [start, end) to the allocator
     pub fn add_frame(&mut self, start: usize, end: usize) {
         assert!(start <= end);
@@ -207,7 +208,7 @@ impl<const ORDER: usize, A: Allocator + Clone> FrameAllocator<ORDER, A> {
 /// assert_eq!(num, Some(0));
 /// ```
 #[cfg(feature = "use_spin")]
-pub struct LockedFrameAllocator<const ORDER: usize = 32, A: Allocator + Clone = Global>(
+pub struct LockedFrameAllocator<const ORDER: usize = 32, A: AllocatorClone = Global>(
     Mutex<FrameAllocator<ORDER, A>>,
 );
 
@@ -226,7 +227,7 @@ impl<const ORDER: usize> LockedFrameAllocator<ORDER> {
 }
 
 #[cfg(feature = "use_spin")]
-impl<const ORDER: usize, A: Allocator + Clone> LockedFrameAllocator<ORDER, A> {
+impl<const ORDER: usize, A: AllocatorClone> LockedFrameAllocator<ORDER, A> {
     /// Creates an empty heap
     pub fn new_in(alloc: A) -> Self {
         Self(Mutex::new(FrameAllocator::new_in(alloc)))
@@ -234,7 +235,7 @@ impl<const ORDER: usize, A: Allocator + Clone> LockedFrameAllocator<ORDER, A> {
 }
 
 #[cfg(feature = "use_spin")]
-impl<const ORDER: usize, A: Allocator + Clone> Deref for LockedFrameAllocator<ORDER, A> {
+impl<const ORDER: usize, A: AllocatorClone> Deref for LockedFrameAllocator<ORDER, A> {
     type Target = Mutex<FrameAllocator<ORDER, A>>;
 
     fn deref(&self) -> &Mutex<FrameAllocator<ORDER, A>> {

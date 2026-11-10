@@ -25,6 +25,13 @@ impl<T> SpinIrqLock<T> {
     pub fn lock(&self) -> SpinIrqLockGuard<'_, T> {
         SpinIrqLockGuard::new(self)
     }
+
+    /// # Safety
+    /// Exactly one live guard must have been consumed by handoff_for_switch.
+    /// The caller must no longer access its data and must keep IRQs disabled.
+    pub unsafe fn unlock_after_switch(&self) {
+        unsafe { self.inner.force_unlock(); }
+    }
 }
 
 pub struct SpinIrqLockGuard<'a, T: 'a> {
@@ -33,6 +40,16 @@ pub struct SpinIrqLockGuard<'a, T: 'a> {
 }
 
 impl<'a, T> SpinIrqLockGuard<'a, T> {
+    /// Transfer unlock responsibility to the stack-switch assembly. The
+    /// suspended caller restores its own IRQ state only when it resumes.
+    /// # Safety
+    /// Must unlock exactly once after leaving the outgoing task's stack.
+    pub unsafe fn handoff_for_switch(self) -> bool {
+        let prev = self.prev;
+        core::mem::forget(self);
+        prev
+    }
+
     fn new(lock: &'a SpinIrqLock<T>) -> SpinIrqLockGuard<'a, T> {
         let prev = is_enable_interrupts();
         disable_interrupts();

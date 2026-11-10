@@ -259,6 +259,11 @@ impl<T> Slab<T> {
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
+
+    /// Inspect occupied entries while the owner keeps the slab lock held.
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        (0..self.entries.init).filter_map(|key| self.get(key))
+    }
 }
 
 impl<T> Index<usize> for Slab<T> {

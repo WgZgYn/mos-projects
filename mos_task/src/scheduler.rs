@@ -102,7 +102,8 @@ impl<S: SchedStrategy> Scheduler<S> {
         Some(new)
     }
 
-    fn context_switch<L>(old: KRef<ThreadControlBlock>, new: KRef<ThreadControlBlock>, lock: L) {
+    fn context_switch(old: KRef<ThreadControlBlock>, new: KRef<ThreadControlBlock>,
+        lock: SpinIrqLockGuard<'_, Scheduler<S>>) {
         let old_ctx = old.context.get();
         let new_ctx = new.context.get();
         #[inline(never)]
@@ -120,15 +121,15 @@ impl<S: SchedStrategy> Scheduler<S> {
             }
         }
         inner(old, new);
-        drop(lock);
+        // Unlocking here would let another CPU run/reap the outgoing task
+        // before assembly saves its context. IRQs also stay off until then.
+        let restore_interrupts = unsafe { lock.handoff_for_switch() };
         unsafe {
-            __switch_context(old_ctx, new_ctx);
+            __switch_context(old_ctx, new_ctx, unlock_scheduler_after_switch);
         }
-        // Execution resumes here on the incoming thread's kernel stack: its
-        // copy of `new_ctx` points at its own ThreadContext, so this loads
-        // the user FS base (TLS) of the thread being switched in.
-        let fs_base = unsafe { (*new_ctx).fs_base };
-        x86_64::registers::model_specific::FsBase::write(VirtAddr::new(fs_base));
+        if restore_interrupts { mos_arch::enable_interrupts(); }
+        // TLS is restored in __switch_to. On resume this stack's new_ctx is
+        // the task we switched TO last time, not the task now executing here.
     }
 }
 
@@ -203,7 +204,7 @@ fn schedule_and_switch<T: SchedStrategy>(mut guard: SpinIrqLockGuard<Scheduler<T
         return;
     };
     let old = current_tcb();
-    Scheduler::<ScheduleStrategyImpl>::context_switch(old, new, guard);
+    Scheduler::<T>::context_switch(old, new, guard);
 }
 
 pub fn wake_blocked_task(provider: impl IntoIterator<Item = KRef<ThreadControlBlock>>) {
@@ -215,6 +216,18 @@ pub fn wake_blocked_task(provider: impl IntoIterator<Item = KRef<ThreadControlBl
         {
             guard.enqueue_task(task);
         }
+    }
+}
+
+unsafe extern "C" fn unlock_scheduler_after_switch() {
+    unsafe { SCHEDULER.unlock_after_switch(); }
+}
+
+pub fn wake_interruptible(wait: &crate::signal::InterruptWait) {
+    let mut scheduler = SCHEDULER.lock();
+    if wait.active.load(Ordering::Acquire)
+        && wait.task.trans_state(ThreadStateValue::Blocked, ThreadStateValue::Ready).is_ok() {
+        scheduler.enqueue_task(wait.task.clone());
     }
 }
 
