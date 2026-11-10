@@ -49,14 +49,27 @@ pub trait Inode: Send + Sync {
     fn truncate(&self, _len: u64) -> VfsResult<()> {
         Err(VfsError::NotSupported)
     }
-    /// ioctl(2): device control. `arg` is a user-space pointer for the
-    /// requests that copy data (TCGETS/TIOCGWINSZ). Default: ENOSYS.
-    fn ioctl(&self, _cmd: u32, _arg: u64) -> VfsResult<usize> {
+    /// ioctl(2): device control over kernel-owned buffers. The syscall layer
+    /// is solely responsible for importing/exporting user memory; a device
+    /// must never dereference the raw scalar argument as a pointer.
+    fn ioctl(&self, _cmd: u32, _arg: u64, _input: &[u8], _output: &mut [u8])
+        -> VfsResult<usize> {
         Err(VfsError::NotSupported)
     }
 }
 
 pub trait FileOps: Send + Sync {
+    /// Stateful streams override this and commit consumption only after output.
+    /// The default uses offset-based, replayable file reads and bounded storage.
+    fn read_to(&self, ctx: &IoContext, offset: usize, limit: usize,
+        output: &mut dyn FnMut(&[u8]) -> VfsResult<()>) -> VfsResult<usize> {
+        let mut buffer = [0; 4096];
+        let count = limit.min(buffer.len());
+        if count == 0 { return Ok(0); }
+        let n = self.read(ctx, offset, &mut buffer[..count])?;
+        output(&buffer[..n])?;
+        Ok(n)
+    }
     fn read(&self, ctx: &IoContext, offset: usize, buf: &mut [u8]) -> VfsResult<usize>;
     fn write(&self, ctx: &IoContext, offset: usize, buf: &[u8]) -> VfsResult<usize>;
 }

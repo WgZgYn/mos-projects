@@ -20,6 +20,22 @@ pub fn _print(args: core::fmt::Arguments) {
     }
 }
 
+/// Byte output must bypass fmt::Write and the UART's convenience TTY layer:
+/// UTF-8 can be split across syscalls and termios owns CRLF/BS processing.
+pub fn write_bytes(bytes: &[u8], onlcr: bool) {
+    let mut guard = SERIAL1.lock();
+    if let Some(serial) = guard.deref_mut() {
+        for &byte in bytes {
+            if byte == b'\n' && onlcr {
+                serial.inner_mut().send_bytes_exact(b"\r");
+            }
+            serial
+                .inner_mut()
+                .send_bytes_exact(core::slice::from_ref(&byte));
+        }
+    }
+}
+
 /// Prints to the host through the serial interface.
 #[macro_export]
 macro_rules! serial_print {

@@ -80,9 +80,33 @@ pub mod bounded {
             }
             n
         }
+        /// Snapshot the head without consuming it; caller controls commit.
+        pub fn peek_slice(&self, buf: &mut [T]) -> usize where T: Copy {
+            let n = buf.len().min(self.len);
+            for (index, output) in buf[..n].iter_mut().enumerate() {
+                *output = self.buf[(self.head + index) % N];
+            }
+            n
+        }
     }
 
     mod tests {
+
+        #[test]
+        fn peek_wraps_without_consuming() {
+            let mut buffer = super::RingBuffer::<u8, 4>::new();
+            buffer.write_slice(&[1, 2, 3]);
+            assert_eq!(buffer.read_one(), Some(1));
+            assert_eq!(buffer.read_one(), Some(2));
+            buffer.write_slice(&[4, 5, 6]);
+            let mut bytes = [0; 3];
+            assert_eq!(buffer.peek_slice(&mut bytes), 3);
+            assert_eq!(bytes, [3, 4, 5]);
+            assert_eq!(buffer.len(), 4);
+            assert_eq!(buffer.read_slice(&mut bytes), 3);
+            assert_eq!(bytes, [3, 4, 5]);
+            assert_eq!(buffer.read_one(), Some(6));
+        }
 
         #[test]
         fn test_create() {

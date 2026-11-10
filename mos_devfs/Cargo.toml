@@ -4,8 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+mos_display = { path = "../mos_display" }
+spin = "0.10.0"
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 mos_arch = { path = "../mos_arch" }
+mos_task = { path = "../mos_task" }
 mos_vfs = { path = "../mos_vfs" }
 mos_driver = { path = "../mos_driver" }
 vfs_traits = { path = "../vfs_traits" }
