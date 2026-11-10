@@ -50,7 +50,7 @@ pub fn mount_mem_fs() {
         .expect("failed to open /mem");
 
     let memfs_dentry = mem_dir_file.dentry().clone();
-    mount(memfs_root, memfs_dentry).expect("failed to mount memfs at /mem");
+    mount(memfs_dentry, memfs_root).expect("failed to mount memfs at /mem");
 }
 
 pub fn mount_dev_fs() {

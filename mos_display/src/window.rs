@@ -60,9 +60,24 @@ impl<Buffer: PixelBuffer> PixelWindow for Window<Buffer> {
     }
 
     fn add_dirty(&mut self, mut rect: Rect) {
+        let Some(clipped) = rect.intersect(Rect {
+            x: 0, y: 0, w: self.buffer.width(), h: self.buffer.height(),
+        }) else { return; };
+        rect = clipped;
         rect.x += self.x;
         rect.y += self.y;
-        self.dirty.push(rect);
+        // Bound pending work even when an application repeatedly marks pixels
+        // without presenting. One bounding rectangle is enough for correctness.
+        if let Some(pending) = self.dirty.first_mut() {
+            let right = (pending.x + pending.w).max(rect.x + rect.w);
+            let bottom = (pending.y + pending.h).max(rect.y + rect.h);
+            pending.x = pending.x.min(rect.x);
+            pending.y = pending.y.min(rect.y);
+            pending.w = right - pending.x;
+            pending.h = bottom - pending.y;
+        } else {
+            self.dirty.push(rect);
+        }
     }
 
     fn take_dirty(&mut self) -> impl Iterator<Item = Rect> {
@@ -109,6 +124,8 @@ pub struct SharedSurface {
     height: usize,
     pitch: usize,
     ptr: *mut RGBA,
+    // Pin the backing independently of user mappings (munmap/exec/COW).
+    _backing: alloc::sync::Arc<dyn Send + Sync>,
 }
 
 unsafe impl Send for SharedSurface {}
@@ -118,12 +135,14 @@ impl SharedSurface {
     /// # Safety
     /// `ptr` 必须指向 width * height * 4 字节的已清零连续内存，
     /// 且在其生命周期内保持有效。
-    pub unsafe fn new(width: usize, height: usize, pitch: usize, ptr: *mut RGBA) -> Self {
+    pub unsafe fn new(width: usize, height: usize, pitch: usize, ptr: *mut RGBA,
+        backing: alloc::sync::Arc<dyn Send + Sync>) -> Self {
         Self {
             width,
             height,
             pitch,
             ptr,
+            _backing: backing,
         }
     }
 }

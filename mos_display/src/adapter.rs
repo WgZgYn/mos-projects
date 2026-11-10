@@ -90,6 +90,12 @@ impl FrameBufferAdapter {
 }
 
 impl PixelSink for FrameBufferAdapter {
+    fn restore_background(&mut self, rect: crate::Rect) {
+        mos_driver::framebuffer::paint_terminal_region(rect.x,rect.y,rect.w,rect.h,|x,y,rgb| {
+            let [r,g,b]=rgb;
+            self.blit_row(x,y,&[RGBA { r,g,b,a:255 }]);
+        });
+    }
     fn width(&self) -> usize {
         self.info.width
     }

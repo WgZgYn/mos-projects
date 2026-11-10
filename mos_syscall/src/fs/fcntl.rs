@@ -12,6 +12,7 @@ const F_GETFD: u32 = 1;
 const F_SETFD: u32 = 2;
 const F_GETFL: u32 = 3;
 const F_SETFL: u32 = 4;
+const F_DUPFD_CLOEXEC: u32 = 1030;
 
 fn open_flags_to_linux(f: OpenFlags) -> u32 {
     let mut o = match (f.contains(OpenFlags::READ), f.contains(OpenFlags::WRITE)) {
@@ -32,7 +33,10 @@ pub fn sys_fcntl(fd: FileDesc, cmd: u32, arg: u64) -> VfsResult<u64> {
     let tcb = current_tcb();
     let mut files = tcb.process.files().lock();
     match cmd {
-        F_DUPFD => {
+        F_DUPFD | F_DUPFD_CLOEXEC => {
+            // Close-on-exec is not tracked yet, but ash needs the atomic
+            // duplicate command to retain its private tty descriptor. Treat
+            // it like F_DUPFD until descriptor flags are represented.
             let new = files.dup_from(fd, arg as usize).ok_or(VfsError::BadFileDesc)?;
             Ok(new.0 as u64)
         }

@@ -4,6 +4,8 @@ pub trait PixelSink {
     fn width(&self) -> usize;
     fn height(&self) -> usize;
     fn blit_row(&mut self, pos_x: usize, pos_y: usize, src: &[RGBA]);
+    /// Optional retained desktop/terminal layer beneath all windows.
+    fn restore_background(&mut self, _rect: Rect) {}
 }
 
 pub trait PixelBuffer {

@@ -14,6 +14,7 @@ struct WindowEntry {
     id: u64,
     pid: u64,
     window: SharedWindow,
+    bound: Rect,
 }
 
 static NEXT_WINDOW_ID: SpinIrqLock<u64> = SpinIrqLock::new(0);
@@ -27,28 +28,33 @@ pub fn register(window: SharedWindow, pid: u64) -> u64 {
         *id_gen += 1;
         id
     };
-    list.push(WindowEntry { id, pid, window });
+    let bound = window.lock().bound();
+    window.lock().add_dirty(Rect { x: 0, y: 0, w: bound.w, h: bound.h });
+    list.push(WindowEntry { id, pid, window, bound });
     id
 }
 
-pub fn mark_dirty(window_id: u64, x: usize, y: usize, w: usize, h: usize) -> bool {
+pub fn mark_dirty(window_id: u64, pid: u64, x: usize, y: usize, w: usize, h: usize) -> bool {
     let list = USER_WINDOWS.lock();
-    if let Some(entry) = list.iter().find(|e| e.id == window_id) {
-        if let Some(mut win) = entry.window.try_lock() {
-            win.add_dirty(Rect { x, y, w, h });
-            return true;
-        }
+    if let Some(entry) = list.iter().find(|e| e.id == window_id && e.pid == pid) {
+        entry.window.lock().add_dirty(Rect { x, y, w, h });
+        return true;
     }
     false
 }
 
-pub fn destroy(window_id: u64) {
-    USER_WINDOWS.lock().retain(|e| e.id != window_id);
+pub fn destroy(window_id: u64, pid: u64) -> bool {
+    let mut list = USER_WINDOWS.lock();
+    let Some(index) = list.iter().position(|e| e.id == window_id && e.pid == pid)
+        else { return false; };
+    let removed = list.remove(index);
+    // Repaint the exposed background and surviving windows in stacking order.
+    super::manager::DISPLAY_MANAGER.lock().add_extra_dirty(removed.bound);
+    true
 }
 
-pub fn flush(sink: &mut impl PixelSink) {
-    let mut list = USER_WINDOWS.lock();
-    let mut dirty = Vec::new();
+pub fn flush(sink: &mut impl PixelSink, mut dirty: Vec<Rect>) {
+    let list = USER_WINDOWS.lock();
     for entry in list.iter() {
         if let Some(mut win) = entry.window.try_lock() {
             for rect in win.take_dirty() { dirty.push(rect); }

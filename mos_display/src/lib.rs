@@ -67,16 +67,16 @@ pub struct Rect {
 impl Rect {
     pub const fn intersect(self, rhs: Self) -> Option<Self> {
         let left = if self.x > rhs.x { self.x } else { rhs.x };
-        let right = if self.x + self.w < rhs.x + rhs.w {
-            self.x + self.w
+        let right = if self.x.saturating_add(self.w) < rhs.x.saturating_add(rhs.w) {
+            self.x.saturating_add(self.w)
         } else {
-            rhs.x + rhs.w
+            rhs.x.saturating_add(rhs.w)
         };
         let top = if self.y > rhs.y { self.y } else { rhs.y };
-        let bottom = if self.y + self.h < rhs.y + rhs.h {
-            self.y + self.h
+        let bottom = if self.y.saturating_add(self.h) < rhs.y.saturating_add(rhs.h) {
+            self.y.saturating_add(self.h)
         } else {
-            rhs.y + rhs.h
+            rhs.y.saturating_add(rhs.h)
         };
 
         if left < right && top < bottom {
@@ -97,6 +97,15 @@ pub fn init(framebuffer: &'static mut FrameBuffer) {
 }
 
 pub fn render_to_framebuffer() {
+    let _display = mos_driver::framebuffer::DISPLAY_LOCK.lock();
+    render_locked();
+}
+
+pub fn write_terminal(bytes: &[u8], onlcr: bool) {
+    mos_driver::framebuffer::write_terminal_and_present(bytes,onlcr,render_locked);
+}
+
+fn render_locked() {
     adapter::access_framebuffer_adapter(|adapter| {
         compositor::render_to(adapter);
     });
@@ -117,12 +126,12 @@ pub fn register_user_window(
     compositor::register_user_window(window, pid)
 }
 
-pub fn mark_user_window_dirty(window_id: u64, x: usize, y: usize, w: usize, h: usize) -> bool {
-    compositor::mark_window_dirty(window_id, x, y, w, h)
+pub fn mark_user_window_dirty(window_id: u64, pid: u64, x: usize, y: usize, w: usize, h: usize) -> bool {
+    compositor::mark_window_dirty(window_id, pid, x, y, w, h)
 }
 
-pub fn destroy_user_window(window_id: u64) {
-    compositor::destroy_user_window(window_id)
+pub fn destroy_user_window(window_id: u64, pid: u64) -> bool {
+    compositor::destroy_user_window(window_id, pid)
 }
 
 // ─── 光标 API ──────────────────────────────────────

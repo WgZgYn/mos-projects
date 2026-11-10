@@ -55,6 +55,18 @@ impl Dentry {
     pub fn parent(&self) -> Option<Arc<Dentry>> {
         self.inner.read().parent()
     }
+
+    /// Mount roots have an internal empty name; getcwd must use the visible
+    /// mountpoint before walking the parent chain.
+    pub fn path_location(self: &Arc<Self>) -> (String, Option<Arc<Dentry>>) {
+        let inner = self.inner.read();
+        if let Some(mountpoint) = inner.mount_point.clone() {
+            drop(inner);
+            mountpoint.path_location()
+        } else {
+            (inner.name.clone(), inner.parent())
+        }
+    }
     pub fn mount(self: Arc<Self>, root: &Arc<Self>) -> VfsResult<()> {
         mount(self, root)
     }

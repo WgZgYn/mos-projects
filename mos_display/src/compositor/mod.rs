@@ -2,7 +2,7 @@ pub mod cursor;
 pub mod manager;
 pub mod user;
 
-use crate::traits::{Compositor, PixelSink};
+use crate::traits::PixelSink;
 use crate::Rect;
 use crate::window::{Surface, Window};
 use alloc::sync::Arc;
@@ -14,6 +14,9 @@ pub use user::{register as register_user_window, mark_dirty as mark_window_dirty
                destroy as destroy_user_window};
 
 pub fn render_to(sink: &mut impl PixelSink) {
+    if let Some([x,y,w,h]) = mos_driver::framebuffer::take_terminal_damage() {
+        DISPLAY_MANAGER.lock().add_extra_dirty(Rect { x,y,w,h });
+    }
     // 擦除旧光标（先取出旧位置，尽快释放锁）
     let old_rect = cursor::CURSOR.lock().take_prev_rect();
     if let Some(old) = old_rect {
@@ -21,8 +24,8 @@ pub fn render_to(sink: &mut impl PixelSink) {
     }
 
     // 绘制所有窗口
-    DISPLAY_MANAGER.lock().flush(sink);
-    user::flush(sink);
+    let damage = DISPLAY_MANAGER.lock().flush_with_damage(sink);
+    user::flush(sink, damage);
 
     // 叠加新光标
     let mut c = cursor::CURSOR.lock();
