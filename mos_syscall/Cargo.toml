@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-x86_64 = "0.15.4"
+x86_64 = "0.15.5"
 log = "0.4.29"
 goblin = { version = "0.10.4", default-features = false, features = ["elf64", "alloc", "elf32", "endian_fd"] }
 vfs_common = { path = "../vfs_common" }

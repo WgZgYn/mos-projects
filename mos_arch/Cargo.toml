@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 log = "0.4"
 spin = "0.10.0"
-x86_64 = "0.15.4"
+x86_64 = "0.15.5"
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 raw-cpuid = "11.6.0"
 mos_lib = { path = "../mos_lib" }

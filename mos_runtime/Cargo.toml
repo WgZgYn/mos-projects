@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-x86_64 = "0.15.4"
+x86_64 = "0.15.5"
 log = "0.4.29"
 mos_abi = { path = "../mos_abi" }
 mos_lib = { path = "../mos_lib" }

@@ -3,8 +3,14 @@
 *.*/target
 /build/*
 user/target
+# Local tool and credential configuration; keep real values on the developer machine.
 settings.local.json
+*.local.json
+.codex/
+.claude/settings.local.json
 .idea
 /user/.idea
 qemu_serial.log
 qemu_stderr.log
+# Local snapshots of removed code; not part of the build.
+/_backup/

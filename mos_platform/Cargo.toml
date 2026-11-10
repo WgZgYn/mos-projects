@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-x86_64 = "0.15.4"
+x86_64 = "0.15.5"
 acpi = "6.1.1"
 x2apic = "0.5.0"
 conquer-once = { version = "0.4.0", default-features = false }
