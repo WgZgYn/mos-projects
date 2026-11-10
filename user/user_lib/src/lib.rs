@@ -3,6 +3,7 @@
 #![feature(linkage)]
 
 pub mod console;
+pub mod signal;
 mod os;
 mod syscall;
 
@@ -183,6 +184,38 @@ pub fn brk(addr: u64) -> u64 {
 }
 pub fn waitpid(pid: u64) -> i32 {
     sys_wait(pid) as _
+}
+
+pub fn getpid() -> u64 { syscall::sys_getpid() }
+pub fn setpgid(pid: i32, pgid: i32) -> i64 { syscall::sys_setpgid(pid, pgid) }
+pub fn getpgrp() -> i64 { syscall::sys_getpgrp() }
+pub fn setsid() -> i64 { syscall::sys_setsid() }
+pub fn ioctl(fd: FileDesc, command: u32, argument: u64) -> i64 {
+    syscall::sys_ioctl(fd.0 as u64, command, argument)
+}
+
+pub fn tcgetattr(fd: FileDesc, termios: &mut mos_abi::fs::Termios) -> i64 {
+    ioctl(fd, mos_abi::fs::TCGETS, termios as *mut _ as u64)
+}
+
+pub fn tcsetattr(fd: FileDesc, termios: &mos_abi::fs::Termios) -> i64 {
+    ioctl(fd, mos_abi::fs::TCSETS, termios as *const _ as u64)
+}
+
+pub fn tcgetpgrp(fd: FileDesc) -> i64 {
+    let mut group = 0i32;
+    let result = ioctl(fd, mos_abi::fs::TIOCGPGRP, &mut group as *mut _ as u64);
+    if result < 0 { result } else { group as i64 }
+}
+
+pub fn tcsetpgrp(fd: FileDesc, group: i32) -> i64 {
+    ioctl(fd, mos_abi::fs::TIOCSPGRP, &group as *const _ as u64)
+}
+
+/// Linux-style wait: returns child PID, 0 for WNOHANG, or negative errno.
+/// `status` is encoded; decode with mos::process::{exited, exit_code}.
+pub fn wait4(pid: i32, status: &mut i32, options: u32) -> i64 {
+    syscall::sys_wait4(pid, status, options)
 }
 /// open(2) with Linux O_* flags (see mos_abi::fs::O_*).
 pub fn open(path: &CStr, flags: u32) -> Option<FileDesc> {
@@ -409,7 +442,7 @@ pub fn window_sync() {
     sys_window_sync()
 }
 
-/// 销毁窗口并释放其物理帧。
+/// 销毁窗口，释放合成器持有的引用；用户映射仍由进程地址空间管理。
 pub fn destroy_window(win_id: u64) {
     sys_destroy_window(win_id)
 }

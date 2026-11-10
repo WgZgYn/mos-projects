@@ -24,6 +24,10 @@ impl WaitQueueInner {
     pub fn wait_task(&mut self, task: KRef<ThreadControlBlock>) {
         self.0.push_back(task);
     }
+    /// Cancel this resource's registration before the caller can wait again.
+    pub fn remove_task(&mut self, tid: crate::thread::Tid) {
+        self.0.retain(|task| task.tid != tid);
+    }
     pub fn wake_one(&mut self) -> Option<KRef<ThreadControlBlock>> {
         self.0.pop_front()
     }

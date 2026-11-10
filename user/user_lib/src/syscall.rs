@@ -38,6 +38,33 @@ fn syscall_v2(no: u64, args: [u64; 6]) -> u64 {
     ret
 }
 
+pub fn sys_rt_sigprocmask(how: i32, set: u64, oldset: u64) -> i64 {
+    syscall_v2(Syscall::RtSigprocmask as _, [how as u64, set, oldset, 8, 0, 0]) as i64
+}
+
+pub fn sys_rt_sigaction(signal: i32, act: u64, oldact: u64) -> i64 {
+    syscall_v2(Syscall::RtSigaction as _, [signal as u64, act, oldact, 8, 0, 0]) as i64
+}
+
+pub fn sys_rt_sigpending(set: u64) -> i64 {
+    syscall_v2(Syscall::RtSigpending as _, [set, 8, 0, 0, 0, 0]) as i64
+}
+
+pub fn sys_kill(id: i32, signal: i32, thread_directed: bool) -> i64 {
+    let number = if thread_directed { Syscall::Tkill } else { Syscall::Kill };
+    syscall(number as u64, [id as u64, signal as u64, 0]) as i64
+}
+
+pub fn sys_gettid() -> u64 { syscall(Syscall::GetTid as u64, [0; 3]) }
+pub fn sys_setpgid(pid: i32, pgid: i32) -> i64 {
+    syscall(Syscall::Setpgid as u64, [pid as u64, pgid as u64, 0]) as i64
+}
+pub fn sys_getpgrp() -> i64 { syscall(Syscall::Getpgrp as u64, [0; 3]) as i64 }
+pub fn sys_setsid() -> i64 { syscall(Syscall::Setsid as u64, [0; 3]) as i64 }
+pub fn sys_ioctl(fd: u64, command: u32, argument: u64) -> i64 {
+    syscall(Syscall::Ioctl as u64, [fd, command as u64, argument]) as i64
+}
+
 pub fn sys_read(fd: u64, buffer: &mut [u8]) -> isize {
     syscall(
         Syscall::Read as _,
@@ -115,7 +142,15 @@ pub fn sys_brk(addr: u64) -> u64 {
     syscall(Syscall::Brk as _, [addr, 0, 0])
 }
 pub fn sys_wait(pid: u64) -> u64 {
-    syscall(Syscall::Wait as _, [pid, 0, 0]) as _
+    let mut status = 0i32;
+    let result = sys_wait4(pid as i32, &mut status, 0);
+    if result < 0 { result as u64 }
+    else if mos_abi::process::exited(status) { mos_abi::process::exit_code(status) as u64 }
+    else { 128 + (status as u64 & 0x7f) }
+}
+
+pub fn sys_wait4(pid: i32, status: &mut i32, options: u32) -> i64 {
+    syscall_v2(Syscall::Wait as _, [pid as u64, status as *mut i32 as u64, options as u64, 0, 0, 0]) as i64
 }
 pub fn sys_getdents(fd: u64, buf: &mut [u8]) -> u64 {
     syscall(
@@ -139,7 +174,7 @@ pub fn sys_gettimeofday(tv: *mut Timeval, tz: *mut Timezone) -> isize {
     syscall(Syscall::GetTimeOfDay as _, [tv as u64, tz as u64, 0]) as _
 }
 pub fn sys_chdir(fd: u64) -> u64 {
-    syscall(Syscall::ChDir as _, [fd, 0, 0])
+    syscall(Syscall::Fchdir as _, [fd, 0, 0])
 }
 pub fn sys_mmap(start: u64, len: u64, prot: u32, flags: u32, fd: i32, offset: u64) -> u64 {
     syscall_v2(

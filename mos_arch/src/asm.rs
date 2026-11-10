@@ -44,8 +44,28 @@ __switch_context:
     mov [rdi + 0x28], rbx
     mov [rdi + 0x30], rsp
 
+    # The outgoing task may already be queued. Keep the scheduler locked
+    # until its context is saved AND we stop touching its stack. Preserve
+    # incoming context/stack in callee-saved temporaries across unlock.
+    mov r12, rsi
+    mov r13, rdx
+    mov rbx, [rsi + 0x30]
+    mov rsp, rbx
+    and rsp, -16
+    call r13
+    mov rsp, rbx
+    mov rsi, r12
+
 __switch_to:
     fxrstor64 [rsi + 0x40]
+
+    # Restore TLS while RSI still names the incoming context. A new fork
+    # returns straight to intr_exit, so no Rust post-switch epilogue runs.
+    mov rax, [rsi + 0x240]
+    mov rdx, rax
+    shr rdx, 32
+    mov ecx, 0xc0000100
+    wrmsr
 
     mov r15, [rsi + 0x00]
     mov r14, [rsi + 0x08]
@@ -75,7 +95,8 @@ pub fn syscall_entry_point() -> u64 {
 }
 
 unsafe extern "C" {
-    pub fn __switch_context(old_ctx: *mut ThreadContext, new_ctx: *const ThreadContext);
+    pub fn __switch_context(old_ctx: *mut ThreadContext, new_ctx: *const ThreadContext,
+        unlock: unsafe extern "C" fn());
     fn __switch_to(_: *mut ThreadContext, new_ctx: *mut ThreadContext);
 }
 
@@ -159,12 +180,16 @@ macro_rules! register_syscall {
             __syscall_entry:
             ",
             "cld",
-            // swap to kernel stack and push user_rsp
+            // Swap to the kernel stack and synthesize a full user IRET frame.
             "
             swapgs
             mov gs:{user_rsp}, rsp
             mov rsp, gs:{kernel_rsp}
+            push {user_ss}
             push gs:{user_rsp}
+            push r11
+            push {user_cs}
+            push rcx
             swapgs
             ",
             $crate::push_caller_regs!(),
@@ -173,16 +198,18 @@ macro_rules! register_syscall {
             sti
             mov rdi, rsp
             call {handler}
+            cli
             ",
             $crate::pop_callee_regs!(),
             $crate::pop_caller_regs!(),
             "
-            pop rsp
-            sysretq
+            iretq
             ",
             ),
             user_rsp = const $crate::percpu::TEMP_RSP_OFFSET,
             kernel_rsp = const $crate::percpu::KERNEL_STACK_OFFSET,
+            user_cs = const $crate::structs::CpuContext::user_context().cs.0,
+            user_ss = const $crate::structs::CpuContext::user_context().ss.0,
             handler = sym $rust_handler
         );
     };

@@ -25,6 +25,9 @@ pub enum KError {
     BadFd = 42,
     NoChild = 43,
     NoExec = 44,
+    Interrupted = 45,
+    OperationNotPermitted = 46,
+    NotTty = 47,
 }
 
 impl KError {
@@ -55,6 +58,9 @@ impl KError {
             Self::BadFd => 9,             // EBADF
             Self::NoChild => 10,          // ECHILD
             Self::NoExec => 8,            // ENOEXEC
+            Self::Interrupted => 4,       // EINTR
+            Self::OperationNotPermitted => 1, // EPERM
+            Self::NotTty => 25,           // ENOTTY
         }
     }
 }
@@ -87,6 +93,9 @@ impl KError {
             Self::BadFd => "bad file descriptor",
             Self::NoChild => "no child processes",
             Self::NoExec => "exec format error",
+            Self::Interrupted => "interrupted system call",
+            Self::OperationNotPermitted => "operation not permitted",
+            Self::NotTty => "not a tty",
         }
     }
 }

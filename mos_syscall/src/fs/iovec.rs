@@ -1,75 +1,56 @@
-//! readv(2)/writev(2) — musl's stdio flush uses writev, so these are needed
-//! for basic printf output from a static musl binary.
-
+//! Checked descriptor snapshots shared by readv/writev.
 use mos_abi::fs::FileDesc;
 use mos_abi::io::Iovec;
 use mos_arch::structs::SyscallContext;
 use mos_task::current_tcb;
-use vfs_common::{VfsError, VfsResult, vfs_error_to_errno};
 
-fn file_for(fd: FileDesc) -> VfsResult<alloc::sync::Arc<mos_vfs::file::File>> {
-    current_tcb()
-        .process
-        .files()
-        .lock()
-        .get(fd)
-        .cloned()
-        .ok_or(VfsError::BadFileDesc)
+fn import_vectors(address: u64, count: usize) -> Result<alloc::vec::Vec<Iovec>, i64> {
+    if count > 1024 { return Err(-22); }
+    let task = current_tcb();
+    let mut vectors = alloc::vec::Vec::new();
+    vectors.try_reserve_exact(count).map_err(|_| -12i64)?;
+    let mut length = 0u64;
+    for index in 0..count {
+        let pointer = address.checked_add(index as u64 * 16).ok_or(-14i64)?;
+        let mut bytes = [0u8; 16];
+        task.process.mem.copy_from_user(pointer, &mut bytes).map_err(|e| -e.to_errno())?;
+        let base = u64::from_ne_bytes(bytes[..8].try_into().unwrap());
+        let len = u64::from_ne_bytes(bytes[8..].try_into().unwrap());
+        length = length.checked_add(len).filter(|n| *n <= i64::MAX as u64).ok_or(-22i64)?;
+        vectors.push(Iovec { iov_base: base, iov_len: len });
+    }
+    Ok(vectors)
 }
 
-pub fn sys_readv(fd: FileDesc, iovs: *const Iovec, cnt: usize) -> VfsResult<usize> {
-    let file = file_for(fd)?;
+fn transfer(fd: FileDesc, address: u64, count: usize, read: bool) -> Result<i64, i64> {
+    let file = if read { super::read::readable_file(fd)? } else { super::write::writable_file(fd)? };
+    // Snapshot the whole descriptor array before performing any device I/O.
+    let vectors = import_vectors(address, count)?;
     let mut total = 0usize;
-    for i in 0..cnt {
-        let iov = unsafe { iovs.add(i).read() };
-        if iov.iov_base == 0 || iov.iov_len == 0 {
-            continue;
-        }
-        let buf =
-            unsafe { core::slice::from_raw_parts_mut(iov.iov_base as *mut u8, iov.iov_len as usize) };
-        let n = file.read(buf)?;
+    for iov in vectors {
+        let count = (iov.iov_len as usize).min(0x7fff_f000 - total);
+        if count == 0 { continue; }
+        let result = if read {
+            // Once any bytes are read, a later empty pipe must return a partial
+            // result instead of blocking a second time for another vector.
+            super::read::read_user(&file, iov.iov_base, count, total != 0)
+        } else { super::write::write_user(&file, iov.iov_base, count) };
+        let n = match result {
+            Ok(n) => n as usize,
+            Err(_) if total != 0 => return Ok(total as i64),
+            Err(e) => return Err(e),
+        };
         total += n;
-        if n < buf.len() {
-            break; // short read: the file has no more data for now
-        }
+        if n < count || total == 0x7fff_f000 { break; }
     }
-    Ok(total)
-}
-
-pub fn sys_writev(fd: FileDesc, iovs: *const Iovec, cnt: usize) -> VfsResult<usize> {
-    let file = file_for(fd)?;
-    let mut total = 0usize;
-    for i in 0..cnt {
-        let iov = unsafe { iovs.add(i).read() };
-        if iov.iov_base == 0 || iov.iov_len == 0 {
-            continue;
-        }
-        let buf = unsafe { core::slice::from_raw_parts(iov.iov_base as *const u8, iov.iov_len as usize) };
-        let n = file.write(buf)?;
-        total += n;
-        if n < buf.len() {
-            break;
-        }
-    }
-    Ok(total)
+    Ok(total as i64)
 }
 
 pub fn raw_sys_readv(context: &mut SyscallContext, args: [u64; 6]) {
-    let fd = FileDesc(args[0] as usize);
-    let iovs = args[1] as *const Iovec;
-    let cnt = args[2] as usize;
-    context.scratch.rax = match sys_readv(fd, iovs, cnt) {
-        Ok(n) => n as u64,
-        Err(e) => (-vfs_error_to_errno(e)) as u64,
-    };
+    context.scratch.rax = transfer(FileDesc(args[0] as usize), args[1], args[2] as usize, true)
+        .unwrap_or_else(|error| error) as u64;
 }
-
 pub fn raw_sys_writev(context: &mut SyscallContext, args: [u64; 6]) {
-    let fd = FileDesc(args[0] as usize);
-    let iovs = args[1] as *const Iovec;
-    let cnt = args[2] as usize;
-    context.scratch.rax = match sys_writev(fd, iovs, cnt) {
-        Ok(n) => n as u64,
-        Err(e) => (-vfs_error_to_errno(e)) as u64,
-    };
+    context.scratch.rax = transfer(FileDesc(args[0] as usize), args[1], args[2] as usize, false)
+        .unwrap_or_else(|error| error) as u64;
 }

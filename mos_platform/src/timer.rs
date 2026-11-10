@@ -119,6 +119,24 @@ pub fn deadline_expired(deadline: u64) -> bool {
     monotonic_ticks() >= deadline
 }
 
+pub fn deadline_after_timespec(seconds: u64, nanos: u64) -> u64 {
+    let ns = seconds as u128 * 1_000_000_000 + nanos as u128;
+    let ticks = (ns * pm_timer_freq() as u128).div_ceil(1_000_000_000);
+    monotonic_ticks().saturating_add(ticks.min(u64::MAX as u128) as u64)
+}
+
+pub fn remaining_timespec(deadline: u64) -> (i64, i64) {
+    let ticks = deadline.saturating_sub(monotonic_ticks());
+    let ns = (ticks as u128 * 1_000_000_000).div_ceil(pm_timer_freq() as u128);
+    ((ns / 1_000_000_000) as i64, (ns % 1_000_000_000) as i64)
+}
+
+/// Remove the registration on interruption. A waker already drained by tick
+/// is protected separately by the caller's per-wait lifetime token.
+pub fn cancel_timer(waker: &Waker) {
+    TIMER_QUEUE.access(|queue| queue.entries.retain(|entry| !entry.waker.will_wake(waker)));
+}
+
 pub fn add_timer(deadline: u64, waker: Option<Waker>) -> bool {
     if deadline_expired(deadline) {
         return false;

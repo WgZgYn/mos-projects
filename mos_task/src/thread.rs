@@ -161,6 +161,9 @@ pub struct ThreadControlBlock {
     /// futex there and wakes waiters (futex part lands with phase 3)
     clear_child_tid: AtomicU64,
 
+    /// Linux masks are per-thread, unlike the process-wide disposition table.
+    pub signals: spin::Mutex<crate::signal::ThreadSignals>,
+
     /// used for cfs schedule
     vruntime: VRunTime,
     pub(crate) node: RBTreeLink,
@@ -170,6 +173,24 @@ pub struct ThreadControlBlock {
 }
 
 impl ThreadControlBlock {
+    /// Find a live user target and acquire ownership before releasing the slab.
+    /// The last KRef can reach zero before destroy obtains this lock: never
+    /// resurrect that entry, even though its storage has not been removed yet.
+    pub fn find_user_target(id: u64, by_tid: bool) -> Option<KRef<Self>> {
+        let slab = TCB_SLAB.lock();
+        let target = slab.iter().find(|t| {
+            (if by_tid { t.tid.as_u64() } else { t.process.pid.as_u64() }) == id
+                && t.process.mem.is_userspace()
+                && !t.process.shared.exited.load(Ordering::Acquire)
+                && t.get_state() != ThreadStateValue::Zombied
+        })?;
+        target.refcount.fetch_update(Ordering::Acquire, Ordering::Relaxed,
+            |count| if count == 0 { None } else { count.checked_add(1) }).ok()?;
+        // SAFETY: slab lock protects storage; the successful nonzero increment
+        // now owns one strong reference, consumed by the returned KRef.
+        Some(unsafe { KRef::from_ptr(NonNull::from_ref(target)) })
+    }
+
     /// this function just fill the struct field and init the intr restore kernel context
     /// not call `fninit`
     pub fn create_with_context(
@@ -210,6 +231,7 @@ impl ThreadControlBlock {
                 need_sched: AtomicBool::new(false),
                 priority,
                 clear_child_tid: AtomicU64::new(0),
+                signals: spin::Mutex::new(crate::signal::ThreadSignals::default()),
                 vruntime: VRunTime(AtomicU64::new(1024)),
                 node: RBTreeLink::new(),
                 refcount: AtomicUsize::new(1),

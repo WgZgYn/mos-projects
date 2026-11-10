@@ -1,4 +1,4 @@
-use mos_abi::error::KResult;
+use mos_abi::error::{KError, KResult};
 use mos_arch::sync::SpinIrqLock;
 use crate::thread::{Priority, ThreadControlBlock, Tid};
 use crate::wait_queue::WaitQueue;
@@ -34,6 +34,9 @@ lazy_static! {
 
 // use slab as the allocator
 static PCB_SLAB: SpinIrqLock<Slab<ProcessControlBlock>> = SpinIrqLock::new(Slab::new());
+// PID identity outlives the PCB slot (the parent may still own a zombie).
+// Do not wrap: exhaustion returns EAGAIN until a reusable PID allocator exists.
+static NEXT_PID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Pid(u64);
@@ -68,11 +71,17 @@ impl Default for KernelStack {
     }
 }
 
+pub trait ImageResource: Send + Sync {
+    fn key(&self) -> (&'static str, u64);
+}
+
 pub struct SharedState {
     pub child_pid: Pid,
     pub exited: AtomicBool,
-    pub exit_code: AtomicI32,
-    pub wait_queue: WaitQueue,
+    pub wait_status: AtomicI32,
+    pub(crate) pgid: AtomicU64,
+    pub(crate) sid: AtomicU64,
+    pub(crate) executed: AtomicBool,
 }
 
 impl SharedState {
@@ -80,8 +89,10 @@ impl SharedState {
         Arc::new(Self {
             child_pid,
             exited: AtomicBool::new(false),
-            exit_code: AtomicI32::new(0),
-            wait_queue: WaitQueue::new(),
+            wait_status: AtomicI32::new(0),
+            pgid: AtomicU64::new(0),
+            sid: AtomicU64::new(0),
+            executed: AtomicBool::new(false),
         })
     }
 }
@@ -164,6 +175,7 @@ impl FileTable {
 }
 
 pub struct ProcessControlBlock {
+    slab_key: usize,
     /// unique process id
     pub pid: Pid,
 
@@ -184,17 +196,29 @@ pub struct ProcessControlBlock {
     /// child process exit state shared with parent
     pub childs: Mutex<Vec<Arc<SharedState>>>,
 
+    /// All child exits notify one queue, so wait4(-1) need not select a child
+    /// in advance. Arc keeps the queue alive if the parent exits first.
+    pub child_exit_queue: Arc<WaitQueue>,
+    pub parent_exit_queue: Mutex<Option<Arc<WaitQueue>>>,
+
     /// this is self exit state shared with parent
     pub shared: Arc<SharedState>,
 
     /// open file table
     pub files: Mutex<FileTable>,
 
+    /// Resources tied to this executable image (for example display handles).
+    /// Fork does not transfer ownership; exec and exit release them before memory.
+    pub image_resources: Mutex<Vec<Box<dyn ImageResource>>>,
+
     /// current working directory
     pub work_dir: Mutex<Arc<Dentry>>,
 
     /// umask(2) value for file mode calculation
     pub umask: AtomicU32,
+
+    /// Dispositions are shared by threads; keep the table off the slab entry.
+    pub signals: Mutex<Box<crate::signal::ProcessSignals>>,
 }
 
 impl ProcessControlBlock {
@@ -207,6 +231,9 @@ impl ProcessControlBlock {
     /// all the new construction of PCB will insert into PCBTables
     /// will allocate frame for root page table
     fn new_empty(user_space: bool, new_addr_space: bool) -> KResult<KRef<Self>> {
+        let pid = Pid(NEXT_PID.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+            (n <= i32::MAX as u64).then_some(n + 1)
+        }).map_err(|_| KError::StillRunning)?);
         let page_table = if new_addr_space {
             PageTableManager::alloc_page_table()?
         } else {
@@ -221,22 +248,29 @@ impl ProcessControlBlock {
 
         let mut guard = PCB_SLAB.lock();
         let pcb = guard.insert_with_key(|key| Self {
-            pid: Pid(key as _),
+            slab_key: key,
+            pid,
             ppid: AtomicU64::new(0),
             mem: MemorySet::new(page_table, user_space),
             threads: Mutex::new(Vec::new()),
             context,
             refcount: AtomicUsize::new(1),
             childs: Mutex::new(Vec::new()),
-            shared: SharedState::new_shared(Pid(key as _)),
+            child_exit_queue: Arc::new(WaitQueue::new()),
+            parent_exit_queue: Mutex::new(None),
+            shared: SharedState::new_shared(pid),
             files: Mutex::new(FileTable::empty()),
+            image_resources: Mutex::new(Vec::new()),
             work_dir: Mutex::new(vfs_root_dentry()),
             umask: AtomicU32::new(0o022),
+            signals: Mutex::new(Box::new(crate::signal::ProcessSignals::default())),
         });
         Ok(unsafe { KRef::from_ptr(NonNull::from_ref(pcb)) })
     }
     pub fn new_empty_user() -> KResult<KRef<Self>> {
-        Self::new_empty(true, true)
+        let process = Self::new_empty(true, true)?;
+        crate::job::register(&process.shared, None);
+        Ok(process)
     }
     /// be careful, this will share the same CR3
     pub fn new_empty_kernel() -> KRef<Self> {
@@ -315,16 +349,21 @@ impl ProcessControlBlock {
         // copy the open files and cwd
         *new_process.files.lock() = self.files.lock().clone();
         *new_process.work_dir.lock() = self.work_dir.lock().clone();
+        **new_process.signals.lock() = self.signals.lock().fork_child();
         new_process
             .umask
             .store(self.umask.load(Ordering::Acquire), Ordering::Release);
 
-        // register the shared state
-        let shared_state = new_process.shared.clone();
-        self.childs.lock().push(shared_state);
+        // Complete fallible setup before publishing a child to its parent.
+        // Otherwise a failed fork leaves a child that can never exit, and wait
+        // can sleep forever on that abandoned shared state.
+        self.mem.share_with(&new_process.mem)?;
 
-        // share the memset
-        self.mem.share_with(&new_process.mem)?; // this should kill the process
+        // The child is not runnable until sys_fork enqueues its first thread.
+        let shared_state = new_process.shared.clone();
+        crate::job::register(&shared_state, Some(&self.shared));
+        *new_process.parent_exit_queue.lock() = Some(self.child_exit_queue.clone());
+        self.childs.lock().push(shared_state);
 
         Ok(new_process)
     }
@@ -332,6 +371,7 @@ impl ProcessControlBlock {
 
 impl Drop for ProcessControlBlock {
     fn drop(&mut self) {
+        self.image_resources.get_mut().clear();
         if self.mem.is_userspace() {
             let frame = self.mem.page_table_frame();
             PageTableManager::free_cr3(frame);
@@ -344,6 +384,6 @@ impl RefCounted for ProcessControlBlock {
         &self.refcount
     }
     unsafe fn destroy(&self) {
-        PCB_SLAB.lock().remove_inplace(self.pid.0 as _);
+        PCB_SLAB.lock().remove_inplace(self.slab_key);
     }
 }

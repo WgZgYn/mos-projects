@@ -69,10 +69,13 @@ impl ScancodeSyncStream {
                 return code;
             }
             park_current(|task| {
+                // Register before rechecking: a key may arrive between the
+                // failed pop above and registration on another CPU.
+                WAKER.register(&Waker::from(task.clone()));
                 if has_key_code() {
+                    WAKER.take();
                     ParkDecision::Unpark
                 } else {
-                    WAKER.register(&Waker::from(task.clone()));
                     ParkDecision::Park(())
                 }
             })
@@ -83,7 +86,7 @@ impl ScancodeSyncStream {
     }
 }
 
-pub struct CharSyncStream<L, S>
+pub struct CharSyncStream<L = layouts::Us104Key, S = ScancodeSet1>
 where
     S: ScancodeSet,
     L: KeyboardLayout,
@@ -99,7 +102,10 @@ where
 {
     pub fn new(scancode_set: S, layout: L) -> Self {
         Self {
-            keyboard: Keyboard::new(scancode_set, layout, HandleControl::Ignore),
+            // Terminal control characters are bytes U+0001..U+001A. Mapping
+            // Ctrl+letter here lets the line discipline compare VINTR/VEOF
+            // without coupling it to a particular keyboard scan-code set.
+            keyboard: Keyboard::new(scancode_set, layout, HandleControl::MapLettersToUnicode),
             stream: ScancodeSyncStream::new(),
         }
     }

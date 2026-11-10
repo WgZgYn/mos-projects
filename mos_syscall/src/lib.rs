@@ -12,7 +12,7 @@ use crate::fs::{
 };
 use crate::mem::{sys_madvise, sys_mmap, sys_mprotect, sys_munmap};
 use crate::process::{
-    sys_brk, sys_exit, sys_fork, sys_getcpu, sys_sleep, sys_wait, sys_yield,
+    sys_brk, sys_exit, sys_fork, sys_getcpu, sys_wait4, sys_yield,
 };
 use crate::random::sys_rand;
 use log::info;
@@ -20,7 +20,7 @@ use mos_abi::error::KError;
 use mos_abi::fs::FileDesc;
 use mos_abi::memory::{MemoryMapFlags, MemoryProtFlags};
 use mos_abi::syscall::Syscall;
-use mos_abi::time::Timespec;
+
 use mos_arch::register_syscall;
 use mos_arch::structs::SyscallContext;
 use mos_lib::align::{align_up, is_aligned};
@@ -35,6 +35,7 @@ pub mod fs;
 pub mod mem;
 pub mod process;
 pub mod random;
+pub mod signal;
 pub mod task;
 pub mod time;
 
@@ -53,10 +54,22 @@ pub fn ret_vfs_err(context: &mut SyscallContext, err: vfs_common::VfsError) {
 /// syscall_no: rax
 /// args: rdi, rsi, rdx
 /// return: rax
-/// rip: rcx
-/// rflags: r11
+/// Hardware places RIP/RFLAGS in RCX/R11 at entry; the entry stub copies
+/// them into the independent IRET tail before dispatch or signal restoration.
 #[inline(never)]
 pub fn syscall(context: &mut SyscallContext) {
+    let syscall_id = context.scratch.rax;
+    dispatch(context);
+    // Only wait4 and byte I/O currently opt into restart. Do not infer restartability
+    // from an arbitrary -EINTR value (notably one restored by sigreturn).
+    let restart = (matches!(Syscall::from(syscall_id), Syscall::Wait | Syscall::Read
+        | Syscall::Readv | Syscall::Write | Syscall::Writev)
+        && context.scratch.rax as i64 == -KError::Interrupted.to_errno())
+        .then_some(syscall_id);
+    signal::deliver_syscall_pending(context, restart);
+}
+
+fn dispatch(context: &mut SyscallContext) {
     let syscall_id = context.scratch.rax;
     let args = [
         context.scratch.rdi,
@@ -83,13 +96,48 @@ pub fn syscall(context: &mut SyscallContext) {
         Syscall::Yield => sys_yield(),
         Syscall::GetCpu => context.scratch.rax = sys_getcpu(),
         Syscall::GetPid => context.scratch.rax = crate::process::sys_getpid(),
+        Syscall::Setpgid | Syscall::Getpgrp | Syscall::Setsid | Syscall::Getpgid | Syscall::Getsid => {
+            let result = match syscall {
+                Syscall::Setpgid => mos_task::job::setpgid(args[0] as i32, args[1] as i32),
+                Syscall::Setsid => mos_task::job::setsid(),
+                Syscall::Getpgrp => mos_task::job::identity(0, false),
+                Syscall::Getpgid => mos_task::job::identity(args[0] as i32, false),
+                _ => mos_task::job::identity(args[0] as i32, true),
+            };
+            match result {
+                Ok(value) => context.scratch.rax = value,
+                Err(error) => ret_err(context, error),
+            }
+        },
+        Syscall::GetTid => context.scratch.rax = current_tcb().tid.as_u64(),
+        Syscall::Kill | Syscall::Tkill => match signal::sys_send_signal(args[0] as i32, args[1] as i32,
+            matches!(syscall, Syscall::Tkill)) {
+            Ok(()) => {},
+            Err(error) => ret_err(context, error),
+        },
+        Syscall::RtSigreturn => signal::sys_rt_sigreturn(context),
         Syscall::GetPpid => context.scratch.rax = crate::process::sys_getppid(),
         Syscall::Getuid | Syscall::Geteuid | Syscall::Getgid | Syscall::Getegid => {
             context.scratch.rax = 0;
         }
         Syscall::Fork => sys_fork(context),
-        Syscall::Wait => context.scratch.rax = sys_wait(args[0]) as _,
+        Syscall::Wait => match sys_wait4(args[0] as i32, args[1], args[2] as u32, args[3]) {
+            Ok(pid) => context.scratch.rax = pid,
+            Err(error) => ret_err(context, error),
+        },
         Syscall::Execve => crate::process::handle_execve(context, args),
+        Syscall::RtSigaction => match signal::sys_rt_sigaction(args[0] as i32, args[1], args[2], args[3]) {
+            Ok(()) => {},
+            Err(error) => ret_err(context, error),
+        },
+        Syscall::RtSigprocmask => match signal::sys_rt_sigprocmask(args[0] as i32, args[1], args[2], args[3]) {
+            Ok(()) => {},
+            Err(error) => ret_err(context, error),
+        },
+        Syscall::RtSigpending => match signal::sys_rt_sigpending(args[0], args[1]) {
+            Ok(()) => {},
+            Err(error) => ret_err(context, error),
+        },
         Syscall::Rand => context.scratch.rax = sys_rand(),
         Syscall::SetTidAddress => {
             context.scratch.rax = crate::process::sys_set_tid_address(args[0])
@@ -102,20 +150,10 @@ pub fn syscall(context: &mut SyscallContext) {
             Ok(ret) => context.scratch.rax = ret,
             Err(e) => ret_err(context, e),
         },
-        Syscall::Nanosleep => {
-            let req = args[0] as *const Timespec;
-            if req.is_null() {
-                ret_err(context, KError::InvalidArg);
-                return;
-            }
-            let ts = unsafe { *req };
-            if ts.tv_sec < 0 || !(0..1_000_000_000).contains(&ts.tv_nsec) {
-                ret_err(context, KError::InvalidArg);
-                return;
-            }
-            let ms = ts.tv_sec as u64 * 1000 + ts.tv_nsec as u64 / 1_000_000;
-            sys_sleep(ms);
-        }
+        Syscall::Nanosleep => match time::sys_nanosleep(args[0], args[1]) {
+            Ok(()) => context.scratch.rax = 0,
+            Err(error) => ret_err(context, error),
+        },
         Syscall::Brk => context.scratch.rax = sys_brk(args[0]),
         Syscall::Mmap => {
             if !is_aligned(args[0], 4096) || !is_aligned(args[5], 4096) {
@@ -186,7 +224,9 @@ pub fn syscall(context: &mut SyscallContext) {
                 }
             }
         }
-        Syscall::ChDir => {
+        Syscall::ChDir => crate::fs::cwd::raw_chdir(context, args),
+        Syscall::GetCWD => crate::fs::cwd::raw_getcwd(context, args),
+        Syscall::Fchdir => {
             let fd = FileDesc(args[0] as usize);
             match sys_chdir(fd) {
                 Ok(_) => context.scratch.rax = 0,
@@ -266,6 +306,7 @@ pub fn syscall(context: &mut SyscallContext) {
                 KernelStack::default(),
                 Priority::default(),
             );
+            tcb.signals.lock().blocked = current_tcb().signals.lock().blocked;
             let tid = tcb.tid;
             enqueue_task(tcb);
 
@@ -273,9 +314,9 @@ pub fn syscall(context: &mut SyscallContext) {
         }
 
         Syscall::CreateWindow => crate::display::sys_create_window(context, args),
-        Syscall::WindowMarkDirty => crate::display::sys_window_mark_dirty(args),
+        Syscall::WindowMarkDirty => crate::display::sys_window_mark_dirty(context, args),
         Syscall::WindowSync => crate::display::sys_window_sync(),
-        Syscall::DestroyWindow => crate::display::sys_destroy_window(args),
+        Syscall::DestroyWindow => crate::display::sys_destroy_window(context, args),
 
         Syscall::ClockGetTime => crate::time::raw_sys_clock_gettime(context, args),
         Syscall::GetTimeOfDay => crate::time::raw_sys_gettimeofday(context, args),
@@ -288,7 +329,7 @@ pub fn syscall(context: &mut SyscallContext) {
         }
 
         _ => {
-            info!("unknown syscall {}: return -ENOSYS", syscall_id);
+            info!(target: "syscall::unknown", "unknown syscall {}: return -ENOSYS", syscall_id);
             ret_err(context, KError::UnknownSyscall);
         }
     }

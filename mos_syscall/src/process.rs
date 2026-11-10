@@ -52,13 +52,17 @@ pub fn sys_yield() {
 pub fn sys_fork(frame: &mut SyscallContext) {
     let parent_tcb = current_tcb();
     let parent_pcb = &parent_tcb.process;
-    let Ok(child_pcb) = parent_pcb.fork() else {
-        crate::ret_err(frame, KError::OutOfMem);
-        return;
-    };
-    // fork cleared WRITABLE on shared CoW pages: other CPUs may hold stale
-    // writable TLB entries for this process (smp fix plan P0-2). Flush them.
+    let child_result = parent_pcb.fork();
+    // Even a failed fork may already have made some parent pages read-only
+    // for CoW. Invalidate remote writable translations on both paths.
     mos_platform::smp::tlb_shootdown();
+    let child_pcb = match child_result {
+        Ok(child) => child,
+        Err(error) => {
+            crate::ret_err(frame, error);
+            return;
+        }
+    };
 
     let mut scratch = frame.scratch.clone();
     scratch.rax = 0;
@@ -67,11 +71,11 @@ pub fn sys_fork(frame: &mut SyscallContext) {
 
     let frame = InterruptStack {
         iret: IretRegisters {
-            rip: frame.scratch.rcx,
-            rsp: frame.user_rsp,
+            rip: frame.iret.rip,
+            rsp: frame.iret.rsp,
             cs: child_pcb.context.cs.0 as _,
             ss: child_pcb.context.ss.0 as _,
-            rflags: frame.scratch.r11,
+            rflags: frame.iret.rflags,
         },
         scratch,
         preserved: frame.preserved.clone(),
@@ -91,6 +95,7 @@ pub fn sys_fork(frame: &mut SyscallContext) {
     // the child shares the parent's address space (COW), so it must keep
     // the same user FS base (TLS pointer)
     child_tcb.set_fs_base(parent_tcb.fs_base());
+    child_tcb.signals.lock().blocked = parent_tcb.signals.lock().blocked;
     enqueue_task(child_tcb);
 }
 
@@ -131,15 +136,22 @@ pub fn sys_execve(
     let current_pcb = &current_tcb.process;
 
     /// unsafe
+    current_pcb.image_resources.lock().clear();
     current_pcb.mem.clear();
 
     let load_info = load_elf_from_file(current_pcb, &f)?;
 
+    // exec replaces the old image, including its thread-exit address. Keeping
+    // musl's old clear_child_tid would write into an unmapped address on exit.
+    current_tcb.set_clear_child_tid(0);
+    current_pcb.signals.lock().on_exec();
+
     let stack = current_pcb.prepare_user_stack()?;
+    mos_task::job::on_exec(&current_pcb.shared);
     frame.preserved = PreservedRegisters::default();
     frame.scratch = ScratchRegisters::default();
-    frame.scratch.rcx = load_info.entry.as_u64();
-    frame.scratch.r11 = CpuContext::DEFAULT_RFLAGS.bits();
+    frame.iret.rip = load_info.entry.as_u64();
+    frame.iret.rflags = CpuContext::DEFAULT_RFLAGS.bits() | 2;
     current_tcb.init_fpu_state();
     tlb::flush_all();
 
@@ -221,7 +233,7 @@ pub fn sys_execve(
         stack_top = stack_top.sub(1);
         stack_top.write(argv.len() as _);
 
-        frame.user_rsp = stack_top as _;
+        frame.iret.rsp = stack_top as _;
     }
 
     Ok(())
@@ -242,74 +254,85 @@ pub fn sys_sleep(ms: u64) {
     });
 }
 
-/// ### child process must set the exited `true` when exiting to avoid parent process waiting infinitely
-pub fn sys_wait(pid: u64) -> i64 {
-    let current_tcb = current_tcb();
-    let current_pcb = current_tcb.process.clone();
-    let target_pcb_state = current_pcb
-        .childs
-        .lock()
-        .iter()
-        .enumerate()
-        .find(|(_, s)| s.child_pid.as_u64() == pid)
-        .map(|(i, s)| (i, s.clone()));
-
-    let Some((index, child)) = target_pcb_state else {
-        return -KError::NoChild.to_errno();
-    };
-
+/// Linux wait4 minimal exit-only subset. A child record stays in `childs`
+/// until output has been copied successfully; failed copies can be retried.
+pub fn sys_wait4(pid: i32, status: u64, options: u32, rusage: u64) -> KResult<u64> {
+    use mos_abi::process::{WNOHANG, WUNTRACED, exit_status};
+    // Stopped states are not generated yet, but accepting WUNTRACED is
+    // essential for an interactive shell's ordinary exit wait. Until stop/
+    // continue lands, it simply broadens no result set.
+    if options & !(WNOHANG | WUNTRACED) != 0 {
+        return Err(KError::InvalidArg);
+    }
+    // Resource accounting remains unimplemented.
+    if rusage != 0 {
+        return Err(KError::Unsupported);
+    }
+    if pid == i32::MIN { return Err(KError::NoProcess); }
+    let current = current_tcb();
+    let pcb = &current.process;
+    // pid=0 means the caller's group at syscall entry, not at each wakeup.
+    let group = if pid == 0 { mos_task::job::group_of(&pcb.shared) }
+        else if pid < -1 { -(pid as i64) as u64 } else { 0 };
     loop {
-        let mut ok = false;
-        let mut queue = child.wait_queue.lock();
-        park_current(|task| {
-            if child.exited.load(Ordering::Acquire) {
-                ok = true;
-                ParkDecision::Unpark
-            } else {
-                queue.wait_task(task.clone());
-                ParkDecision::Park(queue)
-            }
-        });
-        if ok {
-            break;
+        // Hold the notification lock from inspection through registration.
+        // Exit takes the same lock: it cannot slip between the scan and park.
+        let mut queue = pcb.child_exit_queue.lock();
+        let mut children = pcb.childs.lock();
+        let matches = |child: &Arc<mos_task::process::SharedState>| {
+            if pid == -1 { true }
+            else if pid > 0 { child.child_pid.as_u64() == pid as u64 }
+            else { mos_task::job::group_of(child) == group }
+        };
+        if !children.iter().any(matches) {
+            return Err(KError::NoChild);
         }
+        if let Some(index) = children.iter().position(|child| {
+            matches(child) && child.exited.load(Ordering::Acquire)
+        }) {
+            drop(queue);
+            let child = &children[index];
+            let result = child.child_pid.as_u64();
+            if status != 0 {
+                let encoded = child.wait_status.load(Ordering::Relaxed);
+                let copied = pcb.mem.copy_to_user(status, &encoded.to_ne_bytes());
+                // The copy can resolve COW even if a later page fails.
+                mos_platform::smp::tlb_shootdown();
+                copied?;
+            }
+            // The children lock serializes competing waiters: only one can reap.
+            children.swap_remove(index);
+            return Ok(result);
+        }
+        drop(children);
+          if options & WNOHANG != 0 {
+              return Ok(0);
+          }
+          if crate::signal::interrupts_wait(&current) {
+              return Err(KError::Interrupted);
+          }
+        park_current(|task| {
+            queue.wait_task(task.clone());
+            ParkDecision::Park(queue)
+        });
+        // Any child may have exited; rescan rather than assuming this wakeup
+        // belongs to the requested PID (or that another waiter has not reaped it).
     }
-    drop(child);
-
-    // for Vec struct it needs the position is fixed at index,
-
-    // 1. simply swap_remove(index) but it need the vec is position-stable
-    // 2. refind then swap_remove
-    // 3. use `Map` struct to make it unique with pid, when new insert will replace the old one,
-    // then we get the return code from the prev child Arc ref
-
-    // current_pcb
-    //     .childs
-    //     .lock()
-    //     .swap_remove(index)
-    //     .exit_code
-    //     .load(Ordering::Acquire)
-
-    let mut childs = current_pcb.childs.lock();
-    if let Some(index) = childs
-        .iter()
-        .enumerate()
-        .find(|(_, s)| s.child_pid.as_u64() == pid)
-        .map(|(i, _)| i)
-    {
-        let child = childs.swap_remove(index);
-        return child.exit_code.load(Ordering::Acquire) as i64;
-    }
-    -KError::NoChild.to_errno()
+}
+pub fn sys_exit(exit_code: i32) -> ! {
+    exit_with_status(mos_abi::process::exit_status(exit_code))
 }
 
-pub fn sys_exit(exit_code: i32) -> ! {
+/// Wait status low bits distinguish signal death from a normal exit code.
+pub fn sys_exit_signal(signal: i32) -> ! {
+    exit_with_status(signal & 0x7f)
+}
+
+fn exit_with_status(status: i32) -> ! {
     let current = current_tcb();
+    current.process.image_resources.lock().clear();
     clear_child_tid_if_any(&current);
-    let shared = &current.process.shared();
-    shared.exited.store(true, Ordering::Release);
-    shared.exit_code.store(exit_code, Ordering::Release);
-    wake_blocked_task(shared.wait_queue.lock().wake_all());
+    crate::signal::notify_child_exit(&current, status);
     drop(current);
     exit_current();
 }
@@ -326,7 +349,10 @@ fn clear_child_tid_if_any(tcb: &mos_task::thread::ThreadControlBlock) {
     let addr = tcb.clear_child_tid();
     if addr != 0 {
         // TODO(phase 3): futex-wake the waiters on this address
-        unsafe { (addr as *mut u32).write_volatile(0) };
+        // Like Linux, an inaccessible exit notification address must not turn
+        // process exit into a kernel fault. Futex wake remains a separate task.
+        let _ = tcb.process.mem.copy_to_user(addr, &0u32.to_ne_bytes());
+        mos_platform::smp::tlb_shootdown();
     }
 }
 
@@ -383,9 +409,13 @@ pub fn sys_arch_prctl(code: u64, addr: u64) -> KResult<u64> {
     use x86_64::registers::model_specific::{FsBase, Msr};
     match code {
         ARCH_SET_FS => {
-            let base = VirtAddr::new(addr);
-            FsBase::write(base);
-            current_tcb().set_fs_base(addr);
+            if addr >= 0x0000_8000_0000_0000 { return Err(KError::InvalidArg); }
+            // Updating hardware and the saved context is one operation. A
+            // preemption between the two would restore the stale saved base.
+            x86_64::instructions::interrupts::without_interrupts(|| {
+                current_tcb().set_fs_base(addr);
+                FsBase::write(VirtAddr::new(addr));
+            });
             Ok(0)
         }
         ARCH_GET_FS => Ok(FsBase::read().as_u64()),

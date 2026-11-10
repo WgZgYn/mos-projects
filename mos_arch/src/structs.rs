@@ -53,6 +53,9 @@ impl FpuState {
     pub const fn new() -> Self {
         Self { bytes: [0; 512] }
     }
+
+    pub fn bytes(&self) -> &[u8; 512] { &self.bytes }
+    pub fn bytes_mut(&mut self) -> &mut [u8; 512] { &mut self.bytes }
 }
 
 impl Default for FpuState {
@@ -73,7 +76,7 @@ pub struct ThreadContext {
     pub rflags: u64,
     pub fpu: FpuState,
     /// User FS base (x86-64 TLS). Restored from IA32_FS_BASE on context switch.
-    /// Not touched by the asm switch itself; written by arch_prctl(ARCH_SET_FS).
+    /// Written by arch_prctl(ARCH_SET_FS), restored in __switch_to before flags.
     pub fs_base: u64,
 }
 
@@ -81,6 +84,7 @@ const _: () = assert!(align_of::<FpuState>() == 16);
 const _: () = assert!(size_of::<FpuState>() == 512);
 const _: () = assert!(offset_of!(ThreadContext, fpu) == 0x40);
 const _: () = assert!(offset_of!(ThreadContext, rflags) == 0x38);
+const _: () = assert!(offset_of!(ThreadContext, fs_base) == 0x240);
 
 impl From<IretRegisters> for InterruptStackFrameValue {
     fn from(value: IretRegisters) -> Self {
@@ -102,25 +106,11 @@ pub struct InterruptStack {
     pub iret: IretRegisters,           // 5
 }
 
-#[repr(C)]
-pub struct SyscallContext {
-    pub preserved: PreservedRegisters,
-    pub scratch: ScratchRegisters,
-    pub user_rsp: u64,
-}
-
-impl From<InterruptStack> for SyscallContext {
-    fn from(value: InterruptStack) -> Self {
-        let mut ctx = Self {
-            preserved: value.preserved,
-            scratch: value.scratch,
-            user_rsp: value.iret.rsp,
-        };
-        ctx.scratch.rcx = value.iret.rip;
-        ctx.scratch.r11 = value.iret.rflags;
-        ctx
-    }
-}
+// A full IRET frame separates RIP/RFLAGS from RCX/R11. sigreturn must
+// restore all four independently; SYSRET cannot express that state.
+pub type SyscallContext = InterruptStack;
+const _: () = assert!(offset_of!(InterruptStack, iret) == 120);
+const _: () = assert!(size_of::<InterruptStack>() == 160);
 
 #[derive(Debug, Clone)]
 pub struct CpuContext {
@@ -128,4 +118,3 @@ pub struct CpuContext {
     pub ss: SegmentSelector,
     pub rflags: RFlags,
 }
-

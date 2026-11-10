@@ -50,7 +50,8 @@ pub fn install_handlers() {
     set_general_handler(IDTIndexEnum::Keyboard.as_u8(), keyboard_interrupt_handler);
     set_general_handler(IDTIndexEnum::Mouse.as_u8(), mouse_interrupt_handler);
     set_general_handler(IDTIndexEnum::Timer.as_u8(), timer_handler);
-    set_general_handler(IDTIndexEnum::Trap.as_u8(), trap_handler);
+    // Unlike device interrupts, int 0x80 is invoked directly from ring 3.
+    mos_arch::idt::set_trap_handler(IDTIndexEnum::Trap.as_u8(), trap_handler);
 
     // SMP IPI handlers
     set_general_handler(IPI_TLB_SHOOTDOWN, ipi_tlb_handler);
@@ -77,18 +78,14 @@ make_interrupt_handler!(
     |frame| {
         let mut syscall_context = SyscallContext::from(frame.clone());
         syscall(&mut syscall_context);
-        frame.preserved = syscall_context.preserved;
-        frame.iret.rip = syscall_context.scratch.rcx;
-        frame.iret.rsp = syscall_context.user_rsp;
-        frame.iret.rflags = syscall_context.scratch.r11;
-        frame.scratch = syscall_context.scratch;
+        *frame = syscall_context;
     },
     check_schedule
 );
 
 make_interrupt_handler!(
     timer_handler,
-    |_ctx| {
+    |ctx| {
         let tick = unsafe { tick() };
         let need_schedule = tick.is_multiple_of(10);
         if need_schedule {
@@ -96,6 +93,9 @@ make_interrupt_handler!(
         }
         current_tcb().update_vruntime(1);
         eoi(InterruptIndex::Timer.as_u8());
+        // Only user returns are eligible; a timer interrupt inside a syscall
+        // must not install a user handler onto the kernel's interrupted stack.
+        mos_syscall::signal::deliver_pending(ctx);
     },
     check_schedule
 );

@@ -68,6 +68,16 @@ impl File {
     pub fn set_offset(&self, offset: u64) {
         *self.offset.lock() = offset;
     }
+    pub fn read_to(&self, limit: usize, nonblock: bool,
+        output: &mut dyn FnMut(&[u8]) -> VfsResult<()>) -> VfsResult<usize> {
+        if !self.flags.contains(OpenFlags::READ) { return Err(VfsError::BadFileDesc); }
+        let ctx = IoContext::new(nonblock || self.flags.contains(OpenFlags::NONBLOCK));
+        let offset = *self.offset.lock();
+        let n = self.inode.as_file_ops()?.read_to(&ctx, offset as usize, limit, output)?;
+        // Failed copy leaves an offset-based file readable again at this offset.
+        *self.offset.lock() += n as u64;
+        Ok(n)
+    }
     pub fn get_offset(&self) -> u64 {
         *self.offset.lock()
     }

@@ -5,6 +5,8 @@ use crate::thread::ThreadControlBlock;
 use mos_lib::sync::KRef;
 
 pub mod process;
+pub mod job;
+pub mod signal;
 pub mod scheduler;
 pub mod thread;
 mod traits;

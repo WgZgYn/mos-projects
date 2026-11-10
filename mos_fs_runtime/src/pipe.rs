@@ -64,7 +64,32 @@ impl Inode for PipeInode {
     }
 }
 impl FileOps for PipeInode {
+    fn read_to(&self, ctx: &IoContext, _offset: usize, limit: usize,
+        output: &mut dyn FnMut(&[u8]) -> VfsResult<()>) -> VfsResult<usize> {
+        if limit == 0 { return Ok(0); }
+        let mut buffer = [0u8; 512];
+        loop {
+            let mut inner = self.inner.lock();
+            if !inner.buffer.is_empty() {
+                let n = inner.buffer.peek_slice(&mut buffer[..limit.min(512)]);
+                // No consumption or writer wake until the fallible copy commits.
+                output(&buffer[..n])?;
+                inner.buffer.read_slice(&mut buffer[..n]);
+                wake_blocked_task(inner.write_queue.wake_all());
+                return Ok(n);
+            }
+            if inner.writers == 0 { return Ok(0); }
+            if ctx.nonblock { return Err(VfsError::Pendding); }
+            let parked = mos_task::signal::park_interruptible(|task| {
+                inner.read_queue.wait_task(task.clone());
+                ParkDecision::Park(inner)
+            });
+            self.inner.lock().read_queue.remove_task(mos_task::current_tcb().tid);
+            if !parked { return Err(VfsError::Interrupted); }
+        }
+    }
     fn read(&self, ctx: &IoContext, _offset: usize, buf: &mut [u8]) -> VfsResult<usize> {
+        if buf.is_empty() { return Ok(0); }
         loop {
             let mut inner = self.inner.lock();
 
@@ -82,15 +107,20 @@ impl FileOps for PipeInode {
                 return Err(VfsError::Pendding);
             }
 
-            park_current(|task| {
+            let parked = mos_task::signal::park_interruptible(|task| {
                 inner.read_queue.wait_task(task.clone());
                 ParkDecision::Park(inner)
             });
+            self.inner.lock().read_queue.remove_task(mos_task::current_tcb().tid);
+            if !parked { return Err(VfsError::Interrupted); }
             // we need recheck to prevent wake from other's open
         }
     }
 
     fn write(&self, ctx: &IoContext, _offset: usize, buf: &[u8]) -> VfsResult<usize> {
+        // An empty write transfers nothing, even if every reader has closed.
+        // It must not report EPIPE and must not generate SIGPIPE.
+        if buf.is_empty() { return Ok(0); }
         loop {
             let mut inner = self.inner.lock();
 
@@ -108,10 +138,12 @@ impl FileOps for PipeInode {
                 return Err(VfsError::Pendding);
             }
 
-            park_current(|task| {
+            let parked = mos_task::signal::park_interruptible(|task| {
                 inner.write_queue.wait_task(task.clone());
                 ParkDecision::Park(inner)
-            })
+            });
+            self.inner.lock().write_queue.remove_task(mos_task::current_tcb().tid);
+            if !parked { return Err(VfsError::Interrupted); }
             // we need recheck to prevent wake from other's open
         }
     }

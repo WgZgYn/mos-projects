@@ -51,6 +51,8 @@ string_enum!(
         FileNameIllegal,
         NotOpen,
         BadFileDesc,
+        NotTty,
+        OperationNotPermitted,
         NotSupported,
         BrokenPipe,
         WouldBlock,
@@ -59,6 +61,8 @@ string_enum!(
         //
         InternelError,
         Unknown,
+        BadAddress,
+        Interrupted,
     }
 );
 
@@ -112,6 +116,8 @@ impl IoContext {
 /// are meaningful to musl/glibc callers.
 pub fn vfs_error_to_errno(ret: VfsError) -> i64 {
     match ret {
+        VfsError::BadAddress => 14,
+        VfsError::Interrupted => 4,
         VfsError::NotFound => 2,           // ENOENT
         VfsError::NotDir => 20,            // ENOTDIR
         VfsError::NotFile => 21,           // EISDIR
@@ -123,6 +129,8 @@ pub fn vfs_error_to_errno(ret: VfsError) -> i64 {
         VfsError::FileNameIllegal => 22,   // EINVAL
         VfsError::NotOpen => 9,            // EBADF
         VfsError::BadFileDesc => 9,        // EBADF
+        VfsError::NotTty => 25,            // ENOTTY
+        VfsError::OperationNotPermitted => 1, // EPERM
         VfsError::NotSupported => 38,      // ENOSYS
         VfsError::BrokenPipe => 32,        // EPIPE
         VfsError::WouldBlock => 11,        // EAGAIN
@@ -135,6 +143,8 @@ pub fn vfs_error_to_errno(ret: VfsError) -> i64 {
 
 fn errno_to_vfs_error(errno: i64) -> Option<VfsError> {
     Some(match errno {
+        14 => VfsError::BadAddress,
+        4 => VfsError::Interrupted,
         2 => VfsError::NotFound,
         20 => VfsError::NotDir,
         21 => VfsError::NotFile,
@@ -145,6 +155,8 @@ fn errno_to_vfs_error(errno: i64) -> Option<VfsError> {
         17 => VfsError::AlreadyExists,
         22 => VfsError::FileNameIllegal,
         9 => VfsError::BadFileDesc,
+        25 => VfsError::NotTty,
+        1 => VfsError::OperationNotPermitted,
         38 => VfsError::NotSupported,
         32 => VfsError::BrokenPipe,
         11 => VfsError::WouldBlock,
@@ -180,7 +192,7 @@ mod tests {
         use crate::{VfsError, vfs_error_to_errno};
         let all = VfsError::all_variants();
         for err in all {
-            let errno = vfs_error_to_errno(err);
+            let errno = vfs_error_to_errno(*err);
             assert!(errno > 0 && errno < 4096, "errno out of range: {}", errno);
         }
     }

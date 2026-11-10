@@ -13,6 +13,44 @@ use mos_arch::structs::SyscallContext;
 use mos_platform::rtc::{epoch_seconds, read_rtc};
 use mos_platform::timer::monotonic_time_ms;
 
+pub fn sys_nanosleep(request: u64, remaining: u64) -> Result<(), KError> {
+    use mos_platform::timer::{add_timer, cancel_timer, deadline_after_timespec,
+        deadline_expired, remaining_timespec};
+    use mos_task::scheduler::ParkDecision;
+    let task = mos_task::current_tcb();
+    let memory = &task.process.mem;
+    let mut bytes = [0; 16];
+    memory.copy_from_user(request, &mut bytes)?;
+    let sec = i64::from_ne_bytes(bytes[..8].try_into().unwrap());
+    let ns = i64::from_ne_bytes(bytes[8..].try_into().unwrap());
+    if sec < 0 || !(0..1_000_000_000).contains(&ns) { return Err(KError::InvalidArg); }
+    let deadline = deadline_after_timespec(sec as u64, ns as u64);
+    while !deadline_expired(deadline) {
+        let mut registration = None;
+        let parked = mos_task::signal::park_interruptible_with_waker(|_, waker| {
+            registration = Some(waker.clone());
+            if add_timer(deadline, Some(waker)) { ParkDecision::Park(()) }
+            else { ParkDecision::Unpark }
+        });
+        if let Some(waker) = registration { cancel_timer(&waker); }
+        if !parked {
+            // Unlike byte I/O, nanosleep is not SA_RESTART eligible. Capture
+            // remainder before handler delivery; req/rem may alias safely.
+            if remaining != 0 {
+                let (sec, ns) = remaining_timespec(deadline);
+                bytes[..8].copy_from_slice(&sec.to_ne_bytes());
+                bytes[8..].copy_from_slice(&ns.to_ne_bytes());
+                memory.validate_user_write(remaining, bytes.len())?;
+                let result = memory.copy_to_user(remaining, &bytes);
+                mos_platform::smp::tlb_shootdown();
+                result?;
+            }
+            return Err(KError::Interrupted);
+        }
+    }
+    Ok(())
+}
+
 /// Current wall-clock time as (epoch seconds, nsec) — nsec is always 0
 /// because the RTC has 1s granularity.
 pub fn wall_clock() -> (i64, i64) {
